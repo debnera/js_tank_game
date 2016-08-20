@@ -2,6 +2,10 @@
   Created by: Anton Debner 2016
 */
 
+var WIDTH=1000, HEIGHT=600, pi=Math.PI;
+var UpArrow=38, DownArrow=40;
+var canvas, ctx, keystate;
+
 function main() {
   /*
     Creates a new HTML5 canvas element, adds listeners for input and
@@ -14,7 +18,7 @@ function main() {
 
   // Attempt to find a document element with specific id, otherwise attach the
   // canvas to document body.
-  attach_to = document.getElementById('attached_script');
+  attach_to = document.getElementById('game_window');
   if (attach_to == null)
   {
       attach_to = document.body;
@@ -64,6 +68,8 @@ function draw() {
   /*
     Handles all drawing on the HTML5 canvas.
   */
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.save();
 }
 
 main();
