@@ -3,8 +3,34 @@
 */
 
 var WIDTH=1000, HEIGHT=600, pi=Math.PI;
-var UpArrow=38, DownArrow=40;
+var UpArrow=38, DownArrow=40, LeftArrow=37, RightArrow=39;
 var canvas, ctx, keystate;
+var tank;
+
+class Tank {
+
+  constructor() {
+    this.x = 10;
+    this.y = 10;
+    this.color = "#000";
+    this.size = 10;
+  }
+
+  update() {
+    if (keystate[UpArrow]) this.y -= 1;
+    else if (keystate[DownArrow]) this.y += 1;
+    if (keystate[LeftArrow]) this.x -= 1;
+    else if (keystate[RightArrow]) this.x += 1;
+  }
+
+  draw() {
+    var x = this.x;
+    var y = this.y;
+    var s = this.size/2;
+    ctx.fillRect(x-s, y-s, s*2, s*2);
+  }
+
+};
 
 function main() {
   /*
@@ -39,6 +65,8 @@ function main() {
     delete keystate[evt.keyCode];
   });
 
+  tank = new Tank();
+
   init();
   var loop = function() {
     /*
@@ -62,6 +90,7 @@ function update() {
   /*
     Handles game logic by moving all objects and checking collisions.
   */
+  tank.update();
 }
 
 function draw() {
@@ -80,6 +109,9 @@ function draw() {
   ctx.lineTo(0, HEIGHT);
   ctx.lineTo(0, 0);
   ctx.stroke();
+
+  tank.draw();
+
   ctx.restore(); // Restore saved drawing state
 }
 
