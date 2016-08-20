@@ -68,8 +68,19 @@ function draw() {
   /*
     Handles all drawing on the HTML5 canvas.
   */
+  ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  ctx.save();
+  ctx.save(); // Save current drawing state
+
+  // Draw borders
+  ctx.fillStyle = "#000";
+  ctx.moveTo(0,0);
+  ctx.lineTo(WIDTH, 0);
+  ctx.lineTo(WIDTH, HEIGHT);
+  ctx.lineTo(0, HEIGHT);
+  ctx.lineTo(0, 0);
+  ctx.stroke();
+  ctx.restore(); // Restore saved drawing state
 }
 
 main();
