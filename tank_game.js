@@ -14,20 +14,41 @@ class Tank {
     this.y = 10;
     this.color = "#000";
     this.size = 10;
+    this.dir = 0; // degrees
+    this.speed = 1;
+    this.turn_speed = 5;
   }
 
   update() {
-    if (keystate[UpArrow]) this.y -= 1;
-    else if (keystate[DownArrow]) this.y += 1;
-    if (keystate[LeftArrow]) this.x -= 1;
-    else if (keystate[RightArrow]) this.x += 1;
+    var radians = this.dir * (Math.PI/180);
+    if (keystate[UpArrow]) {
+      this.x -= this.speed * Math.sin(radians);
+      this.y -= this.speed * Math.cos(radians);
+    }
+    else if (keystate[DownArrow]) {
+      this.x += this.speed * Math.sin(radians);
+      this.y += this.speed * Math.cos(radians);
+    }
+    if (keystate[LeftArrow]) {
+      this.dir += this.turn_speed;
+      if (this.dir >= 360) this.dir -= 360;
+    }
+    else if (keystate[RightArrow]) {
+      this.dir -= this.turn_speed;
+      if (this.dir < 0) this.dir += 360;
+    }
   }
 
   draw() {
     var x = this.x;
     var y = this.y;
     var s = this.size/2;
-    ctx.fillRect(x-s, y-s, s*2, s*2);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-this.dir * (Math.PI/180));
+    ctx.fillRect(-s, -s, s*2, s*2);
+    ctx.fillRect(-s/2, -s*2, s, s*2);
+    ctx.restore();
   }
 
 };
@@ -99,7 +120,7 @@ function draw() {
   */
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  ctx.save(); // Save current drawing state
+  //ctx.save(); // Save current drawing state
 
   // Draw borders
   ctx.fillStyle = "#000";
@@ -112,7 +133,7 @@ function draw() {
 
   tank.draw();
 
-  ctx.restore(); // Restore saved drawing state
+  //ctx.restore(); // Restore saved drawing state
 }
 
 main();
