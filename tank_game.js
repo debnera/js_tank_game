@@ -6,6 +6,32 @@ var WIDTH=1000, HEIGHT=600, pi=Math.PI;
 var UpArrow=38, DownArrow=40, LeftArrow=37, RightArrow=39;
 var canvas, ctx, keystate;
 var tank;
+var wall_width = 1;
+var cell_size = 30;
+var cells;
+
+class Cell {
+
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.right_wall = true;
+    this.bottom_wall = true;
+  }
+
+  draw() {
+    var x = this.x;
+    var y = this.y;
+    var s = cell_size / 2;
+    var w = wall_width / 2;
+    if (this.bottom_wall) {
+      ctx.fillRect(x-s, y+s-w, s*2, w*2);
+    }
+    if (this.right_wall) {
+      ctx.fillRect(x+s-w, y-s, w*2, s*2);
+    }
+  }
+};
 
 class Tank {
 
@@ -105,6 +131,21 @@ function init() {
     Sets gameobjects to their starting values.
   */
   keystate = {}; // Reset the keystate to avoid stuck buttons
+  cells = [];
+  var num_width = Math.round(WIDTH / cell_size);
+  var num_height = Math.round(HEIGHT / cell_size);
+  for (i = 0; i < num_width; i++) {
+    var x = i * cell_size + cell_size / 2;
+    var column = []
+
+    for (j = 0; j < num_height; j++) {
+      var y = j * cell_size + cell_size / 2;
+      new_cell = new Cell(x, y);
+      column[j] = new_cell;
+    }
+    cells[i] = column;
+  }
+
 }
 
 function update() {
@@ -132,6 +173,14 @@ function draw() {
   ctx.stroke();
 
   tank.draw();
+  var num_width = Math.round(WIDTH / cell_size);
+  var num_height = Math.round(HEIGHT / cell_size);
+  for (i = 0; i < num_width; i++) {
+    for (j = 0; j < num_height; j++) {
+      cells[i][j].draw();
+    }
+  }
+
 
   //ctx.restore(); // Restore saved drawing state
 }
