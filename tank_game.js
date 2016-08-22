@@ -22,14 +22,6 @@ class Cell {
     this.bottom_wall = true;
   }
 
-  remove_right_wall() {
-    this.right_wall = false;
-  }
-
-  remove_bottom_wall() {
-    this.bottom_wall = false;
-  }
-
   draw() {
     var x = this.x;
     var y = this.y;
