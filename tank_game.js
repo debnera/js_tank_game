@@ -6,7 +6,7 @@ var WIDTH=900, HEIGHT=600;
 var UpArrow=38, DownArrow=40, LeftArrow=37, RightArrow=39;
 var canvas, ctx, keystate;
 var tank;
-var wall_width = 1;
+var wall_width = 2;
 var cell_size = 50;
 var num_cells_x, num_cells_y; // Assigned when cells are created
 var cells;
@@ -35,6 +35,70 @@ class Cell {
     }
   }
 };
+
+function RectRectIntersect(ax, ay, aw, ah, bx, by, bw, bh) {
+  /*
+    Used for checking collisions between two rectangles.
+  */
+  var axIntersect = ax < (bx + bw);
+  var bxIntersect = bx < (ax + aw);
+  var ayIntersect = ay < (by + bh);
+  var byIntersect = by < (ay + ah);
+  var collision = {};
+  //console.log(ax);
+  if (axIntersect && bxIntersect && ayIntersect && byIntersect) {
+    // Collision detected, calculate intersecting distances from all
+    // directions.
+
+    collision["up"] = ay - (by+bh); // How much the rect intersects from below
+    collision["down"] = ay+ah - by; // How much the rect intersects from above
+    collision["left"] = ax+aw - bx; // ... from left
+    collision["right"] = ax - (bx+bw); // ... from right
+    var min = collision["up"];
+    var min_key = "up";
+    for (direction in collision) {
+      var value = collision[direction];
+      if (Math.abs(value) < Math.abs(min)) {
+        min = value;
+        min_key = direction;
+      }
+
+    }
+    collision["direction"] = min_key;
+    collision["collision"] = true;
+  }
+  else {
+    collision["collision"] = false;
+  }
+  return collision;
+}
+
+function RectWallIntersect(ax, ay, aw, ah) {
+  /*
+    Checks collisions between given rectangle and all walls.
+  */
+  var collisions = [];
+
+  for (column_ind in cells) {
+    column = cells[column_ind];
+    for (cell_ind in column) {
+      cell = column[cell_ind];
+      var x = cell.x;
+      var y = cell.y;
+      var s = cell_size / 2;
+      var w = wall_width / 2;
+      if (cell.bottom_wall) {
+        var collision = RectRectIntersect(ax, ay, aw, ah, x-s, y+s-w, s*2, w*2);
+        if (collision["collision"] === true) collisions.push(collision);
+      }
+      if (cell.right_wall) {
+        var collision = RectRectIntersect(ax, ay, aw, ah, x+s-w, y-s, w*2, s*2);
+        if (collision["collision"] === true) collisions.push(collision);
+      }
+    }
+  }
+  return collisions;
+}
 
 function get_cell_neighbours(x, y) {
   var neighbours = [];
@@ -176,6 +240,47 @@ class Tank {
       this.dir -= this.turn_speed;
       if (this.dir < 0) this.dir += 360;
     }
+    var s = this.size/2;
+    var collisions = RectWallIntersect(this.x-s, this.y-s, s*2, s*2);
+    var prev_x = this.x;
+    var prev_y = this.y;
+    var ok = false;
+    while(ok === false) {
+      ok = true;
+      for (i = 0; i < collisions.length; i++) {
+        console.log("COLLISION!");
+        console.log(collisions.length);
+        console.log(collisions);
+        var collision = collisions[i];
+        var key = collision["direction"];
+        if (key == "up" || key == "down") {
+          console.log("Moving down/up");
+          this.y -= collision[key];
+        }
+        else if (key == "left" || key == "right") {
+          console.log("Moving left/right");
+          this.x -= collision[key];
+        }
+        else console.log("WHAAAAAAAAAAAAAAT");
+        var new_collisions = RectWallIntersect(this.x-s, this.y-s, s*2, s*2);
+        console.log(new_collisions);
+        if (new_collisions.length === 0) {
+          break;
+        }
+        else if (i < collisions.length-1) {
+          console.log("Ei toimi");
+          this.x = prev_x;
+          this.y = prev_y;
+        }
+        else {
+          collisions = new_collisions;
+          ok = false;
+          console.log("Uusiks");
+        }
+      }
+
+    }
+    console.log("PLÖP");
   }
 
   draw() {
