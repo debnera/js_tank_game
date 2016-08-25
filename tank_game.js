@@ -5,14 +5,147 @@
 var WIDTH=900, HEIGHT=600;
 var UpArrow=38, DownArrow=40, LeftArrow=37, RightArrow=39;
 var canvas, ctx, keystate;
-var tank;
+var TANK_SIZE = 10;
+var TANK_SPEED = 1;
+var TANK_TURN_SPEED = 5;
 var wall_width = 2;
 var cell_size = 50;
 var num_cells_x, num_cells_y; // Assigned when cells are created
 var cells;
+var game_objects;
+
+class GameObject {
+  constructor(x, y, width, height, movable, physics) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.rotation = 0;
+    this.velocity = new Object();
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+    this.movable = movable;
+    this.physics = physics;
+    this.color = "#000";
+  }
+
+  get_rect(local_coordinates) {
+    var x = this.x;
+    var y = this.y;
+    var w = this.width / 2;
+    var h = this.height / 2;
+    if (local_coordinates) return [-w, -h, w*2, h*2];
+    else return [x-w, y-h, w*2, h*2];
+  }
+
+  on_collision(obj) {
+    /*
+      Default GameObjects do nothing on collision. Child classes can use this
+      for example to damage or give powerups to tanks on collision.
+    */
+  }
+
+  update() {
+    if (this.physics) {
+      // Move by velocity
+    }
+    if (this.movable) {
+      var collisions = GetCollisions(this);
+      var prev_x = this.x;
+      var prev_y = this.y;
+      var done = false;
+      while(done === false) {
+        done = true;
+        for (i = 0; i < collisions.length; i++) {
+          var collision = collisions[i];
+          var key = collision["direction"];
+          if (key == "up" || key == "down") {
+            this.y -= collision[key];
+          }
+          else if (key == "left" || key == "right") {
+            this.x -= collision[key];
+          }
+          var new_collisions = GetCollisions(this);
+          if (new_collisions.length === 0) {
+            break;
+          }
+          else if (i < collisions.length-1) {
+            this.x = prev_x;
+            this.y = prev_y;
+          }
+          else {
+            collisions = new_collisions;
+            done = false;
+          }
+        }
+      }
+      if (this.physics) {
+        // Move away from collisions and invert velocity (i.e. bounce)
+      }
+      else {
+        // Move away from collisions
+      }
+    }
+  }
+
+  draw() {
+    ctx.save();
+    ctx.fillStyle = this.color;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(-this.rotation * (Math.PI/180));
+    ctx.fillRect.apply(ctx, this.get_rect(true));
+    ctx.restore();
+  }
+};
+
+class Tank extends GameObject {
+
+  constructor(x, y) {
+    super(x, y, TANK_SIZE, TANK_SIZE, true, false); // Movable=true, physics=false
+    this.speed = 1;
+    this.turn_speed = 5;
+  }
+
+  update() {
+    var radians = this.rotation * (Math.PI/180);
+    if (keystate[UpArrow]) {
+      this.x -= this.speed * Math.sin(radians);
+      this.y -= this.speed * Math.cos(radians);
+    }
+    else if (keystate[DownArrow]) {
+      this.x += this.speed * Math.sin(radians);
+      this.y += this.speed * Math.cos(radians);
+    }
+    if (keystate[LeftArrow]) {
+      this.rotation += this.turn_speed;
+      if (this.rotation >= 360) this.rotation -= 360;
+    }
+    else if (keystate[RightArrow]) {
+      this.rotation -= this.turn_speed;
+      if (this.rotation < 0) this.rotation += 360;
+    }
+
+    super.update(); // Checks collisions
+    //console.log(this.x);
+  }
+
+  draw() {
+    var x = this.x;
+    var y = this.y;
+    var s = this.width/2;
+    ctx.save();
+    ctx.fillStyle = this.color;
+    ctx.translate(x, y);
+    ctx.rotate(-this.rotation * (Math.PI/180));
+    ctx.fillRect(-s, -s, s*2, s*2); // Draw tank body
+    ctx.fillRect(-s/2, -s*2, s, s*2); // Draw gun
+    ctx.restore();
+  }
+
+};
+
 
 class Cell {
-
   constructor(x, y, i, j) {
     this.ind_x = i;
     this.ind_y = j;
@@ -21,25 +154,20 @@ class Cell {
     this.right_wall = true;
     this.bottom_wall = true;
   }
-
-  draw() {
-    var x = this.x;
-    var y = this.y;
-    var s = cell_size / 2;
-    var w = wall_width / 2;
-    if (this.bottom_wall) {
-      ctx.fillRect(x-s, y+s-w, s*2, w*2);
-    }
-    if (this.right_wall) {
-      ctx.fillRect(x+s-w, y-s, w*2, s*2);
-    }
-  }
 };
 
-function RectRectIntersect(ax, ay, aw, ah, bx, by, bw, bh) {
+function RectRectIntersect(rect1, rect2) {
   /*
     Used for checking collisions between two rectangles.
   */
+  ax = rect1[0];
+  ay = rect1[1];
+  aw = rect1[2];
+  ah = rect1[3];
+  bx = rect2[0];
+  by = rect2[1];
+  bw = rect2[2];
+  bh = rect2[3];
   var axIntersect = ax < (bx + bw);
   var bxIntersect = bx < (ax + aw);
   var ayIntersect = ay < (by + bh);
@@ -73,28 +201,16 @@ function RectRectIntersect(ax, ay, aw, ah, bx, by, bw, bh) {
   return collision;
 }
 
-function RectWallIntersect(ax, ay, aw, ah) {
+function GetCollisions(obj) {
   /*
-    Checks collisions between given rectangle and all walls.
+    Checks collisions given gameobject and all other gameobjects.
   */
   var collisions = [];
-
-  for (column_ind in cells) {
-    column = cells[column_ind];
-    for (cell_ind in column) {
-      cell = column[cell_ind];
-      var x = cell.x;
-      var y = cell.y;
-      var s = cell_size / 2;
-      var w = wall_width / 2;
-      if (cell.bottom_wall) {
-        var collision = RectRectIntersect(ax, ay, aw, ah, x-s, y+s-w, s*2, w*2);
-        if (collision["collision"] === true) collisions.push(collision);
-      }
-      if (cell.right_wall) {
-        var collision = RectRectIntersect(ax, ay, aw, ah, x+s-w, y-s, w*2, s*2);
-        if (collision["collision"] === true) collisions.push(collision);
-      }
+  for (obj_ind in game_objects) {
+    var other_obj = game_objects[obj_ind];
+    if (obj != other_obj) { // Don't check collision with itself
+      var collision = RectRectIntersect(obj.get_rect(false), other_obj.get_rect(false));
+      if (collision["collision"] === true) collisions.push(collision);
     }
   }
   return collisions;
@@ -207,95 +323,26 @@ function maze_generator_kruskal() {
     }
   }
 
-
-}
-
-class Tank {
-
-  constructor() {
-    this.x = 10;
-    this.y = 10;
-    this.color = "#000";
-    this.size = 10;
-    this.dir = 0; // degrees
-    this.speed = 1;
-    this.turn_speed = 5;
-  }
-
-  update() {
-    var radians = this.dir * (Math.PI/180);
-    if (keystate[UpArrow]) {
-      this.x -= this.speed * Math.sin(radians);
-      this.y -= this.speed * Math.cos(radians);
-    }
-    else if (keystate[DownArrow]) {
-      this.x += this.speed * Math.sin(radians);
-      this.y += this.speed * Math.cos(radians);
-    }
-    if (keystate[LeftArrow]) {
-      this.dir += this.turn_speed;
-      if (this.dir >= 360) this.dir -= 360;
-    }
-    else if (keystate[RightArrow]) {
-      this.dir -= this.turn_speed;
-      if (this.dir < 0) this.dir += 360;
-    }
-    var s = this.size/2;
-    var collisions = RectWallIntersect(this.x-s, this.y-s, s*2, s*2);
-    var prev_x = this.x;
-    var prev_y = this.y;
-    var ok = false;
-    while(ok === false) {
-      ok = true;
-      for (i = 0; i < collisions.length; i++) {
-        console.log("COLLISION!");
-        console.log(collisions.length);
-        console.log(collisions);
-        var collision = collisions[i];
-        var key = collision["direction"];
-        if (key == "up" || key == "down") {
-          console.log("Moving down/up");
-          this.y -= collision[key];
-        }
-        else if (key == "left" || key == "right") {
-          console.log("Moving left/right");
-          this.x -= collision[key];
-        }
-        else console.log("WHAAAAAAAAAAAAAAT");
-        var new_collisions = RectWallIntersect(this.x-s, this.y-s, s*2, s*2);
-        console.log(new_collisions);
-        if (new_collisions.length === 0) {
-          break;
-        }
-        else if (i < collisions.length-1) {
-          console.log("Ei toimi");
-          this.x = prev_x;
-          this.y = prev_y;
-        }
-        else {
-          collisions = new_collisions;
-          ok = false;
-          console.log("Uusiks");
-        }
+  // Create GameObjects for every wall
+  for (column_ind in cells) {
+    column = cells[column_ind];
+    for (cell_ind in column) {
+      cell = column[cell_ind];
+      var x = cell.x;
+      var y = cell.y;
+      var s = cell_size/2;
+      var w = wall_width/2;
+      if (cell.bottom_wall) {
+        var wall = new GameObject(x, y+s, s*2, w*2);
+        game_objects.push(wall);
       }
-
+      if (cell.right_wall) {
+        var wall = new GameObject(x+s, y, w*2, s*2);
+        game_objects.push(wall);
+      }
     }
-    console.log("PLÖP");
   }
-
-  draw() {
-    var x = this.x;
-    var y = this.y;
-    var s = this.size/2;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(-this.dir * (Math.PI/180));
-    ctx.fillRect(-s, -s, s*2, s*2);
-    ctx.fillRect(-s/2, -s*2, s, s*2);
-    ctx.restore();
-  }
-
-};
+}
 
 function main() {
   /*
@@ -330,7 +377,7 @@ function main() {
     delete keystate[evt.keyCode];
   });
 
-  tank = new Tank();
+
 
   init();
   var loop = function() {
@@ -348,6 +395,7 @@ function init() {
   /*
     Sets gameobjects to their starting values.
   */
+  game_objects = [];
   keystate = {}; // Reset the keystate to avoid stuck buttons
   cells = [];
   num_cells_x = Math.round(WIDTH / cell_size);
@@ -363,14 +411,26 @@ function init() {
     }
     cells[i] = column;
   }
+
+  // Create border walls (top,bottom,left,right)
+  game_objects.push(new GameObject(WIDTH/2, wall_width/2, WIDTH, wall_width));
+  game_objects.push(new GameObject(WIDTH/2, HEIGHT-wall_width/2, WIDTH, wall_width));
+  game_objects.push(new GameObject(wall_width/2, HEIGHT/2, wall_width, HEIGHT));
+  game_objects.push(new GameObject(WIDTH - wall_width/2, HEIGHT/2, wall_width, HEIGHT));
+  // Generate map
   maze_generator_kruskal();
+  // Create tank
+  game_objects.push(new Tank(10,10));
 }
 
 function update() {
   /*
     Handles game logic by moving all objects and checking collisions.
   */
-  tank.update();
+  for (obj_ind in game_objects) {
+    obj = game_objects[obj_ind];
+    obj.update();
+  }
 }
 
 function draw() {
@@ -379,28 +439,10 @@ function draw() {
   */
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  //ctx.save(); // Save current drawing state
-
-  // Draw borders
-  ctx.fillStyle = "#000";
-  ctx.moveTo(0,0);
-  ctx.lineTo(WIDTH, 0);
-  ctx.lineTo(WIDTH, HEIGHT);
-  ctx.lineTo(0, HEIGHT);
-  ctx.lineTo(0, 0);
-  ctx.stroke();
-
-  tank.draw();
-  num_cells_x = Math.round(WIDTH / cell_size);
-  num_cells_y = Math.round(HEIGHT / cell_size);
-  for (i = 0; i < num_cells_x; i++) {
-    for (j = 0; j < num_cells_y; j++) {
-      cells[i][j].draw();
-    }
+  for (obj_ind in game_objects) {
+    obj = game_objects[obj_ind];
+    obj.draw();
   }
-
-
-  //ctx.restore(); // Restore saved drawing state
 }
 
 main();
