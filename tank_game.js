@@ -3,16 +3,21 @@
 */
 
 var WIDTH=900, HEIGHT=600;
-var UpArrow=38, DownArrow=40, LeftArrow=37, RightArrow=39;
-var Space=32;
-var canvas, ctx, keystate;
-var cells, game_objects;
+// Arrow keys, fire: '
+var P1_UP=38, P1_DOWN=40, P1_LEFT=37, P1_RIGHT=39, P1_FIRE=191;
+// WASD, fire: 1
+var P2_UP=87, P2_DOWN=83, P2_LEFT=65, P2_RIGHT=68, P2_FIRE=49;
+var P1 = 1;
+var P2 = 2;
+var CANVAS, CTX, KEYSTATE;
+var CELLS, GAME_OBJECTS;
 var TANK_SIZE = 15;
 var TANK_SPEED = 1;
 var TANK_TURN_SPEED = 5;
 var WALL_WIDTH = 2;
 var CELL_SIZE = 50;
 var NUM_CELLS_X, NUM_CELLS_Y; // Assigned when cells are created
+var END_ROUND = false;
 
 
 class GameObject {
@@ -28,6 +33,7 @@ class GameObject {
     this.movable = movable; // Can be moved by collisions
     this.physics = physics;
     this.color = "#000";
+    GAME_OBJECTS.push(this);
   }
 
   get_rect(local_coordinates) {
@@ -45,6 +51,11 @@ class GameObject {
       for example to damage or give powerups to tanks on collision.
     */
     //console.log(typeof(obj));
+  }
+
+  destroy() {
+    var i = GAME_OBJECTS.indexOf(this);
+    delete GAME_OBJECTS[i];
   }
 
   update() {
@@ -112,55 +123,87 @@ class GameObject {
         }
       }
       if(attempts > 1) {
-        console.log(attempts);
+        console.log("Attempted to resolve collisions " + attempts + " times");
       }
     }
   }
 
   draw() {
-    ctx.save();
-    ctx.fillStyle = this.color;
-    ctx.translate(this.x, this.y);
-    ctx.rotate(-this.rotation * (Math.PI/180));
-    ctx.fillRect.apply(ctx, this.get_rect(true));
-    ctx.restore();
+    CTX.save();
+    CTX.fillStyle = this.color;
+    CTX.translate(this.x, this.y);
+    CTX.rotate(-this.rotation * (Math.PI/180));
+    CTX.fillRect.apply(CTX, this.get_rect(true));
+    CTX.restore();
   }
 };
 
 
 class Tank extends GameObject {
-  constructor(x, y) {
+  constructor(x, y, player) {
     super(x, y, TANK_SIZE, TANK_SIZE, true, false); // Movable=true, physics=false
+    this.player = player;
     this.speed = 1;
     this.turn_speed = 5;
+    this.fire_delay = 0;
+    this.max_fire_delay = 30;
+    this.max_ammo = 5;
+    this.ammo = this.max_ammo;
+    this.max_hp = 10;
+    this.hp = this.max_hp;
+  }
+
+  damage(amount) {
+    if (amount > 0) this.hp -= amount;
+    else console.log("WARNING: Attempted to damage by negative amount!!!");
+    if (this.hp < 0) this.destroy();
+  }
+
+  destroy() {
+    END_ROUND = true;
+    for (i = 0; i < 360; i += 60) {
+      // Spawn a ring of bullets on death
+      var radians = i * (Math.PI/180);
+      var off_x = -this.width * 1.1 * Math.sin(radians);
+      var off_y = -this.width * 1.1 * Math.cos(radians);
+      new Bullet(this.x + off_x, this.y + off_y, i, this);
+    }
+    super.destroy();
   }
 
   update() {
     /*
       Checks for user input and checks collisions.
     */
+    if (this.fire_delay > 0) this.fire_delay--;
+    var p = this.player;
     var radians = this.rotation * (Math.PI/180);
-    if (keystate[UpArrow]) {
+    if ((p == P1 && KEYSTATE[P1_UP]) || (p == P2 && KEYSTATE[P2_UP])) {
       this.x -= this.speed * Math.sin(radians);
       this.y -= this.speed * Math.cos(radians);
     }
-    else if (keystate[DownArrow]) {
+    else if ((p == P1 && KEYSTATE[P1_DOWN]) || (p == P2 && KEYSTATE[P2_DOWN])) {
       this.x += this.speed * Math.sin(radians);
       this.y += this.speed * Math.cos(radians);
     }
-    if (keystate[LeftArrow]) {
+    if ((p == P1 && KEYSTATE[P1_LEFT]) || (p == P2 && KEYSTATE[P2_LEFT])) {
       this.rotation += this.turn_speed;
       if (this.rotation >= 360) this.rotation -= 360;
     }
-    else if (keystate[RightArrow]) {
+    else if ((p == P1 && KEYSTATE[P1_RIGHT]) || (p == P2 && KEYSTATE[P2_RIGHT])) {
       this.rotation -= this.turn_speed;
       if (this.rotation < 0) this.rotation += 360;
     }
-    if (keystate[Space]) {
-      delete keystate[Space];
-      var off_x = -this.width*2 * Math.sin(radians);
-      var off_y = -this.width*2 * Math.cos(radians);
-      game_objects.push(new Bullet(this.x + off_x, this.y + off_y, this.rotation));
+    if ((p == P1 && KEYSTATE[P1_FIRE]) || (p == P2 && KEYSTATE[P2_FIRE])) {
+      //p === P1 ? delete KEYSTATE[P1_FIRE] : delete KEYSTATE[P2_FIRE];
+      if (this.fire_delay === 0 && this.ammo > 0) {
+        this.ammo--;
+        this.fire_delay = this.max_fire_delay;
+        var off_x = -this.width * 1.1 * Math.sin(radians);
+        var off_y = -this.width * 1.1 * Math.cos(radians);
+        new Bullet(this.x + off_x, this.y + off_y, this.rotation, this);
+      }
+
     }
     super.update(); // Checks collisions
   }
@@ -169,22 +212,24 @@ class Tank extends GameObject {
     var x = this.x;
     var y = this.y;
     var s = this.width/2;
-    ctx.save();
-    ctx.fillStyle = this.color;
-    ctx.translate(x, y);
-    ctx.rotate(-this.rotation * (Math.PI/180));
-    ctx.fillRect(-s, -s, s*2, s*2); // Draw tank body
-    ctx.fillRect(-s/2, -s*2, s, s*2); // Draw gun
-    ctx.restore();
+    CTX.save();
+    var red = Math.round(255 - (255 * (this.hp/this.max_hp)));
+    CTX.fillStyle = "rgb(" + red + ",0,0)";
+    CTX.translate(x, y);
+    CTX.rotate(-this.rotation * (Math.PI/180));
+    CTX.fillRect(-s, -s, s*2, s*2); // Draw tank body
+    CTX.fillRect(-s/2, -s*2, s, s*2); // Draw gun
+    CTX.restore();
   }
 };
 
 
 class Bullet extends GameObject {
-  constructor(x, y, direction) {
+  constructor(x, y, direction, owner_tank) {
     super(x, y, 5, 5, true, true);
-    this.remaining_bounces = 20;
-    this.speed = 1;
+    this.remaining_bounces = 10;
+    this.speed = 1.5;
+    this.tank = owner_tank;
     this.color = "rgb(" +
       Math.round(Math.random() * 255) + "," +
       Math.round(Math.random() * 255) + "," +
@@ -192,21 +237,26 @@ class Bullet extends GameObject {
     var radians = direction * (Math.PI/180);
     this.velocity.x = -this.speed * Math.sin(radians);
     this.velocity.y = -this.speed * Math.cos(radians);
+    this.damage = 4;
   }
 
   on_collision(obj) {
     this.remaining_bounces--;
     if (this.remaining_bounces < 1) {
-      var i = game_objects.indexOf(this);
-      delete game_objects[i];
+      this.destroy();
     }
     if (obj instanceof Tank) {
-      console.log("DAMAGE!!!");
-      var i = game_objects.indexOf(this);
-      delete game_objects[i];
+      obj.damage(this.damage);
+      this.destroy();
     }
   }
+
+  destroy() {
+    if (this.tank) this.tank.ammo++;
+    super.destroy();
+  }
 };
+
 
 class Cell {
   constructor(x, y, i, j) {
@@ -270,8 +320,8 @@ function GetCollisions(obj) {
     Checks collisions given gameobject and all other gameobjects.
   */
   var collisions = [];
-  for (obj_ind in game_objects) {
-    var other_obj = game_objects[obj_ind];
+  for (obj_ind in GAME_OBJECTS) {
+    var other_obj = GAME_OBJECTS[obj_ind];
     if (obj != other_obj) { // Don't check collision with itself
       var collision = RectRectIntersect(obj.get_rect(false), other_obj.get_rect(false));
       if (collision["collision"] === true) {
@@ -289,7 +339,7 @@ function get_cell_neighbours(x, y) {
   for (x2 = x - 1; x2 < x + 1; x2++) {
     for (y2 = y - 1; y2 < y + 1; y2++) {
       if (x2 >= 0 && x2 < NUM_CELLS_X && y2 >= 0 && y2 < NUM_CELLS_Y) {
-        neighbours.push(cells[x2][y2]);
+        neighbours.push(CELLS[x2][y2]);
       }
     }
   }
@@ -301,10 +351,10 @@ function main() {
     Creates a new HTML5 canvas element, adds listeners for input and
     contains the main loop.
   */
-  canvas = document.createElement("canvas")
-  canvas.width = WIDTH;
-  canvas.height = HEIGHT;
-  ctx = canvas.getContext("2d");
+  CANVAS = document.createElement("canvas")
+  CANVAS.width = WIDTH;
+  CANVAS.height = HEIGHT;
+  CTX = CANVAS.getContext("2d");
 
   // Attempt to find a document element with specific id, otherwise attach the
   // canvas to document body.
@@ -313,43 +363,56 @@ function main() {
   {
       attach_to = document.body;
   }
-  attach_to.appendChild(canvas);
+  attach_to.appendChild(CANVAS);
 
   // Add listeners for keydown and keyup
-  keystate = {};
+  KEYSTATE = {};
   document.addEventListener("keydown", function(evt) {
-    if (evt.keyCode === UpArrow || evt.keyCode === DownArrow) {
+    //if (evt.keyCode === UpArrow || evt.keyCode === DownArrow) {
       // Prevent up and down arrows from scrolling the website
-      evt.preventDefault();
-    }
-    keystate[evt.keyCode] = true;
+      //evt.preventDefault();
+    //}
+    KEYSTATE[evt.keyCode] = true;
   });
 
   document.addEventListener("keyup", function(evt) {
-    delete keystate[evt.keyCode];
+    delete KEYSTATE[evt.keyCode];
   });
 
 
 
   init();
+  var reset_counter = 0;
+  var reset_counter_max = 200;
   var loop = function() {
     /*
       The main loop where all the magic happens.
     */
     update();
     draw();
-    window.requestAnimationFrame(loop, canvas);
+    if (END_ROUND === true) reset_counter++;
+    if (reset_counter < reset_counter_max && reset_counter > 0
+        && reset_counter % 10 === 0) {
+      console.log("Ending round in " + (reset_counter_max - reset_counter));
+    }
+    if (reset_counter > reset_counter_max) {
+      // Round has ended and a reasonable time has passed - Reset the game
+      init();
+      END_ROUND = false;
+      reset_counter = 0;
+    }
+    window.requestAnimationFrame(loop, CANVAS);
   };
-  window.requestAnimationFrame(loop, canvas);
+  window.requestAnimationFrame(loop, CANVAS);
 }
 
 function init() {
   /*
     Sets gameobjects to their starting values.
   */
-  game_objects = [];
-  keystate = {}; // Reset the keystate to avoid stuck buttons
-  cells = [];
+  GAME_OBJECTS = [];
+  KEYSTATE = {}; // Reset the keystate to avoid stuck buttons
+  CELLS = [];
   NUM_CELLS_X = Math.round(WIDTH / CELL_SIZE);
   NUM_CELLS_Y = Math.round(HEIGHT / CELL_SIZE);
   for (i = 0; i < NUM_CELLS_X; i++) {
@@ -361,26 +424,29 @@ function init() {
       new_cell = new Cell(x, y, i, j);
       column[j] = new_cell;
     }
-    cells[i] = column;
+    CELLS[i] = column;
   }
 
   // Create border walls (top,bottom,left,right)
-  game_objects.push(new GameObject(WIDTH/2, WALL_WIDTH/2, WIDTH, WALL_WIDTH));
-  game_objects.push(new GameObject(WIDTH/2, HEIGHT-WALL_WIDTH/2, WIDTH, WALL_WIDTH));
-  game_objects.push(new GameObject(WALL_WIDTH/2, HEIGHT/2, WALL_WIDTH, HEIGHT));
-  game_objects.push(new GameObject(WIDTH - WALL_WIDTH/2, HEIGHT/2, WALL_WIDTH, HEIGHT));
+  new GameObject(WIDTH/2, WALL_WIDTH/2, WIDTH, WALL_WIDTH);
+  new GameObject(WIDTH/2, HEIGHT-WALL_WIDTH/2, WIDTH, WALL_WIDTH);
+  new GameObject(WALL_WIDTH/2, HEIGHT/2, WALL_WIDTH, HEIGHT);
+  new GameObject(WIDTH - WALL_WIDTH/2, HEIGHT/2, WALL_WIDTH, HEIGHT);
+
   // Generate map
   maze_generator_kruskal();
-  // Create tank
-  game_objects.push(new Tank(10,10));
+
+  // Create tanks
+  new Tank(25, 25, P1);
+  new Tank(525, 525, P2);
 }
 
 function update() {
   /*
     Handles game logic by moving all objects and checking collisions.
   */
-  for (obj_ind in game_objects) {
-    obj = game_objects[obj_ind];
+  for (obj_ind in GAME_OBJECTS) {
+    obj = GAME_OBJECTS[obj_ind];
     obj.update();
   }
 }
@@ -389,10 +455,10 @@ function draw() {
   /*
     Handles all drawing on the HTML5 canvas.
   */
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  for (obj_ind in game_objects) {
-    obj = game_objects[obj_ind];
+  CTX.fillStyle = "#fff";
+  CTX.fillRect(0, 0, WIDTH, HEIGHT);
+  for (obj_ind in GAME_OBJECTS) {
+    obj = GAME_OBJECTS[obj_ind];
     obj.draw();
   }
 }
@@ -449,7 +515,7 @@ function maze_generator_kruskal() {
   var cell_sets = [];
   for (i = 0; i < NUM_CELLS_X; i++) {
     for (j = 0; j < NUM_CELLS_Y; j++) {
-      cell = cells[i][j];
+      cell = CELLS[i][j];
       cell_sets.push(new Set([cell]));
       right_walls.push(cell);
       bottom_walls.push(cell);
@@ -471,7 +537,7 @@ function maze_generator_kruskal() {
     if (right_walls.length > 0 && Math.random() < vert_prob) {
       var cell = right_walls.pop();
       if (cell.ind_x + 1 < NUM_CELLS_X) {
-        next_cell = cells[cell.ind_x+1][cell.ind_y];
+        next_cell = CELLS[cell.ind_x+1][cell.ind_y];
         if (join_cell_sets(cell, next_cell, cell_sets)) {
           cell.right_wall = false;
         }
@@ -482,7 +548,7 @@ function maze_generator_kruskal() {
     if (bottom_walls.length > 0 && Math.random() < horiz_prob) {
       var cell = bottom_walls.pop();
       if (cell.ind_y + 1 < NUM_CELLS_Y) {
-        next_cell = cells[cell.ind_x][cell.ind_y+1];
+        next_cell = CELLS[cell.ind_x][cell.ind_y+1];
         if (join_cell_sets(cell, next_cell, cell_sets)) {
           cell.bottom_wall = false;
         }
@@ -493,8 +559,8 @@ function maze_generator_kruskal() {
   }
 
   // Create GameObjects for every wall
-  for (column_ind in cells) {
-    column = cells[column_ind];
+  for (column_ind in CELLS) {
+    column = CELLS[column_ind];
     for (cell_ind in column) {
       cell = column[cell_ind];
       var x = cell.x;
@@ -502,12 +568,10 @@ function maze_generator_kruskal() {
       var s = CELL_SIZE/2;
       var w = WALL_WIDTH/2;
       if (cell.bottom_wall) {
-        var wall = new GameObject(x, y+s, s*2, w*2);
-        game_objects.push(wall);
+        new GameObject(x, y+s, s*2, w*2);
       }
       if (cell.right_wall) {
-        var wall = new GameObject(x+s, y, w*2, s*2);
-        game_objects.push(wall);
+        new GameObject(x+s, y, w*2, s*2);
       }
     }
   }
