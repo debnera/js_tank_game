@@ -384,12 +384,21 @@ function main() {
   init();
   var reset_counter = 0;
   var reset_counter_max = 200;
+  var previous_time = Date.now(); // Time in milliseconds
+  var frames = 0;
   var loop = function() {
     /*
       The main loop where all the magic happens.
     */
+    frames++;
+    if (Date.now() - previous_time > 1000) {
+      console.log(frames);
+      previous_time = Date.now();
+      frames = 0;
+    }
     update();
     draw();
+
     if (END_ROUND === true) reset_counter++;
     if (reset_counter < reset_counter_max && reset_counter > 0
         && reset_counter % 10 === 0) {
