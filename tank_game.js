@@ -2,22 +2,44 @@
   Created by: Anton Debner 2016
 */
 
-var WIDTH=900, HEIGHT=600;
-// Arrow keys, fire: '
-var P1_UP=38, P1_DOWN=40, P1_LEFT=37, P1_RIGHT=39, P1_FIRE=191;
-// WASD, fire: 1
-var P2_UP=87, P2_DOWN=83, P2_LEFT=65, P2_RIGHT=68, P2_FIRE=49;
-var P1 = 1;
-var P2 = 2;
-var CANVAS, CTX, KEYSTATE;
-var CELLS, GAME_OBJECTS;
+var WIDTH = 900;
+var HEIGHT = 600;
+
+// Arrow keys
+var P1_UP = 38;
+var P1_DOWN = 40;
+var P1_LEFT = 37;
+var P1_RIGHT = 39;
+var P1_FIRE = 191; // Character ' (or *)
+
+// WASD
+var P2_UP = 87;
+var P2_DOWN = 83;
+var P2_LEFT = 65;
+var P2_RIGHT = 68;
+var P2_FIRE = 49; // Character 1
+
+// Other settings
 var TANK_SIZE = 15;
 var TANK_SPEED = 1;
 var TANK_TURN_SPEED = 5;
 var WALL_WIDTH = 2;
 var CELL_SIZE = 50;
-var NUM_CELLS_X, NUM_CELLS_Y; // Assigned when cells are created
+
+// Global variables (Do not attempt to configure)
+var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
 var END_ROUND = false;
+var P1 = 1;
+var P2 = 2;
+
+
+
+
+/*
+===============================================================================
+-------------------------------------CLASSES-----------------------------------
+===============================================================================
+*/
 
 
 class GameObject {
@@ -258,17 +280,13 @@ class Bullet extends GameObject {
 };
 
 
-class Cell {
-  constructor(x, y, i, j) {
-    this.ind_x = i;
-    this.ind_y = j;
-    this.x = x;
-    this.y = y;
-    this.right_wall = true;
-    this.bottom_wall = true;
-  }
-};
 
+
+/*
+===============================================================================
+----------------------------COLLISION DETECTION--------------------------------
+===============================================================================
+*/
 
 function RectRectIntersect(rect1, rect2) {
   /*
@@ -334,17 +352,16 @@ function GetCollisions(obj) {
   return collisions;
 }
 
-function get_cell_neighbours(x, y) {
-  var neighbours = [];
-  for (x2 = x - 1; x2 < x + 1; x2++) {
-    for (y2 = y - 1; y2 < y + 1; y2++) {
-      if (x2 >= 0 && x2 < NUM_CELLS_X && y2 >= 0 && y2 < NUM_CELLS_Y) {
-        neighbours.push(CELLS[x2][y2]);
-      }
-    }
-  }
-  return neighbours;
-}
+
+
+
+
+
+/*
+===============================================================================
+---------------------------------MAIN FUNCTIONS--------------------------------
+===============================================================================
+*/
 
 function main() {
   /*
@@ -359,10 +376,7 @@ function main() {
   // Attempt to find a document element with specific id, otherwise attach the
   // canvas to document body.
   attach_to = document.getElementById('game_window');
-  if (attach_to == null)
-  {
-      attach_to = document.body;
-  }
+  if (attach_to == null) attach_to = document.body;
   attach_to.appendChild(CANVAS);
 
   // Add listeners for keydown and keyup
@@ -379,37 +393,43 @@ function main() {
     delete KEYSTATE[evt.keyCode];
   });
 
-
-
   init();
   var reset_counter = 0;
   var reset_counter_max = 200;
   var previous_time = Date.now(); // Time in milliseconds
   var frames = 0;
+
   var loop = function() {
     /*
       The main loop where all the magic happens.
     */
+
+    // Step the game forwards and draw everything
+    update();
+    draw();
+
+    // FPS-counter for performance analysis
     frames++;
     if (Date.now() - previous_time > 1000) {
       console.log(frames);
       previous_time = Date.now();
       frames = 0;
     }
-    update();
-    draw();
 
+    // Start a new round if necessary
     if (END_ROUND === true) reset_counter++;
-    if (reset_counter < reset_counter_max && reset_counter > 0
+    if (reset_counter < reset_counter_max
+        && reset_counter > 0
         && reset_counter % 10 === 0) {
       console.log("Ending round in " + (reset_counter_max - reset_counter));
     }
     if (reset_counter > reset_counter_max) {
-      // Round has ended and a reasonable time has passed - Reset the game
       init();
       END_ROUND = false;
       reset_counter = 0;
     }
+
+    // Wait for the browser to finish drawing before looping again
     window.requestAnimationFrame(loop, CANVAS);
   };
   window.requestAnimationFrame(loop, CANVAS);
@@ -417,24 +437,10 @@ function main() {
 
 function init() {
   /*
-    Sets gameobjects to their starting values.
+    Initialize global variables.
   */
   GAME_OBJECTS = [];
   KEYSTATE = {}; // Reset the keystate to avoid stuck buttons
-  CELLS = [];
-  NUM_CELLS_X = Math.round(WIDTH / CELL_SIZE);
-  NUM_CELLS_Y = Math.round(HEIGHT / CELL_SIZE);
-  for (i = 0; i < NUM_CELLS_X; i++) {
-    var x = i * CELL_SIZE + CELL_SIZE / 2;
-    var column = []
-
-    for (j = 0; j < NUM_CELLS_Y; j++) {
-      var y = j * CELL_SIZE + CELL_SIZE / 2;
-      new_cell = new Cell(x, y, i, j);
-      column[j] = new_cell;
-    }
-    CELLS[i] = column;
-  }
 
   // Create border walls (top,bottom,left,right)
   new GameObject(WIDTH/2, WALL_WIDTH/2, WIDTH, WALL_WIDTH);
@@ -472,16 +478,42 @@ function draw() {
   }
 }
 
+
+
+
+
+/*
+===============================================================================
+---------------------------------MAP GENERATION--------------------------------
+===============================================================================
+*/
+
 function maze_generator_kruskal() {
   /*
     Uses randomized Kruskal's algorithm to generate a maze.
     https://en.wikipedia.org/wiki/Maze_generation_algorithm#Randomized_Kruskal.27s_algorithm
+
+    Normally this algorithm generates 'perfect' mazes, with only one route
+    from end to beginning. For gameplay reasons multiple routes through the
+    maze is preferred. This is achieved by randomly deleting additional walls.
   */
+
+  class Cell {
+    constructor(x, y, i, j) {
+      this.ind_x = i;
+      this.ind_y = j;
+      this.x = x;
+      this.y = y;
+      this.right_wall = true;
+      this.bottom_wall = true;
+    }
+  };
 
   function shuffle(a) {
     /*
       Shuffles array in place.
       Taken from http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array-in-javascript
+      because I'm lazy and it is a perfectly fine function.
     */
     var j, x, i;
     for (i = a.length; i; i--) {
@@ -518,13 +550,29 @@ function maze_generator_kruskal() {
     return false;
   }
 
+  // Create cells to assist with maze generation
+  var cells = [];
+  var num_cells_x = Math.floor(WIDTH / CELL_SIZE);
+  var num_cells_y = Math.floor(HEIGHT / CELL_SIZE);
+  for (i = 0; i < num_cells_x; i++) {
+    var x = i * CELL_SIZE + CELL_SIZE / 2;
+    var column = []
+
+    for (j = 0; j < num_cells_y; j++) {
+      var y = j * CELL_SIZE + CELL_SIZE / 2;
+      new_cell = new Cell(x, y, i, j);
+      column[j] = new_cell;
+    }
+    cells[i] = column;
+  }
+
   // Add all walls to arrays and create a set for each cell
   var right_walls = [];
   var bottom_walls = [];
   var cell_sets = [];
-  for (i = 0; i < NUM_CELLS_X; i++) {
-    for (j = 0; j < NUM_CELLS_Y; j++) {
-      cell = CELLS[i][j];
+  for (i = 0; i < num_cells_x; i++) {
+    for (j = 0; j < num_cells_y; j++) {
+      cell = cells[i][j];
       cell_sets.push(new Set([cell]));
       right_walls.push(cell);
       bottom_walls.push(cell);
@@ -543,10 +591,12 @@ function maze_generator_kruskal() {
 
   // Remove all walls between disconnected cells
   while (right_walls.length > 0 && bottom_walls.length > 0) {
+    // Right walls
     if (right_walls.length > 0 && Math.random() < vert_prob) {
       var cell = right_walls.pop();
-      if (cell.ind_x + 1 < NUM_CELLS_X) {
-        next_cell = CELLS[cell.ind_x+1][cell.ind_y];
+      if (cell.ind_x + 1 < num_cells_x) {
+        next_cell = cells[cell.ind_x+1][cell.ind_y];
+        // Check if the cell on right belongs to the same set (already connected)
         if (join_cell_sets(cell, next_cell, cell_sets)) {
           cell.right_wall = false;
         }
@@ -554,10 +604,13 @@ function maze_generator_kruskal() {
         else if (Math.random() < remove_anyway_prob) cell.right_wall = false;
       }
     }
+
+    // Bottom walls
     if (bottom_walls.length > 0 && Math.random() < horiz_prob) {
       var cell = bottom_walls.pop();
-      if (cell.ind_y + 1 < NUM_CELLS_Y) {
-        next_cell = CELLS[cell.ind_x][cell.ind_y+1];
+      if (cell.ind_y + 1 < num_cells_y) {
+        next_cell = cells[cell.ind_x][cell.ind_y+1];
+        // Check if the cell below belongs to the same set (already connected)
         if (join_cell_sets(cell, next_cell, cell_sets)) {
           cell.bottom_wall = false;
         }
@@ -567,9 +620,9 @@ function maze_generator_kruskal() {
     }
   }
 
-  // Create GameObjects for every wall
-  for (column_ind in CELLS) {
-    column = CELLS[column_ind];
+  // Create a GameObject for every wall
+  for (column_ind in cells) {
+    column = cells[column_ind];
     for (cell_ind in column) {
       cell = column[cell_ind];
       var x = cell.x;
