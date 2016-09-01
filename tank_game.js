@@ -25,6 +25,7 @@ var TANK_SPEED = 1;
 var TANK_TURN_SPEED = 5;
 var WALL_WIDTH = 2;
 var CELL_SIZE = 50;
+var COLLISION_DEADZONE = -0.001;
 
 // Global variables (Do not attempt to configure)
 var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
@@ -41,30 +42,164 @@ var P2 = 2;
 ===============================================================================
 */
 
+function deg2rad(degrees) {
+  return degrees * (Math.PI/180);
+}
+
+class Vector2d {
+  constructor(x, y) {
+    if (x == undefined || y == undefined) {
+      throw "Invalid arguments";
+    }
+    this.x = x;
+    this.y = y;
+  }
+
+  rotate(radians) {
+    // Rotates coordinates counterclockwise
+    if (radians != 0) {
+      var x = this.x;
+      var y = this.y;
+      this.x = x * Math.cos(radians) - y * Math.sin(radians);
+      this.y = x * Math.sin(radians) + y * Math.cos(radians);
+    }
+    return this;
+  }
+
+  add(vector) {
+    if (vector instanceof Vector2d) {
+      this.x += vector.x;
+      this.y += vector.y;
+    }
+    else throw "Invalid argument";
+    return this;
+  }
+
+  subtract(vector) {
+    if (vector instanceof Vector2d) {
+      this.x -= vector.x;
+      this.y -= vector.y;
+    }
+    else throw "Invalid argument";
+    return this;
+  }
+
+  multiply(value) {
+    if (isNaN(value) === false) {
+      this.x *= value;
+      this.y *= value;
+    }
+    else throw "Invalid argument";
+    return this;
+  }
+
+  get_dot_product(other) {
+    // Calculates the dot product between given vector
+    if (other instanceof Vector2d) return this.x*other.x + this.y*other.y;
+    else throw "Invalid argument";
+  }
+
+  get_unit_vector() {
+    var c = this.get_magnitude();
+    var unit_vec = new Vector2d(this.x/c, this.y/c);
+    return unit_vec;
+  }
+
+  get_right_normal() {
+    return new Vector2d(this.y, -this.x);
+  }
+
+  get_magnitude() {
+    return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+  }
+
+  get_inverted() {
+    return new Vector2d(-this.x, -this.y);
+  }
+
+  clone() {
+    return new Vector2d(this.x, this.y);
+  }
+
+  reflect(vector) {
+    /*
+      Reflects this vector around given unit vector.
+      vec1 - (2*vec2*(vec2.vec1))
+    */
+    if (vector instanceof Vector2d) {
+      var vec2 = vector.clone(); // Avoid modifying given vector
+      vec2.multiply(vec2.get_dot_product(this));
+      vec2.multiply(2);
+      this.subtract(vec2);
+      return this;
+    }
+    else throw "Invalid argument";
+  }
+};
 
 class GameObject {
   constructor(x, y, width, height, movable = false, physics = false) {
-    this.x = x;
-    this.y = y;
+    this.pos = new Vector2d(x, y);
     this.width = width;
     this.height = height;
     this.rotation = 0;
-    this.velocity = new Object();
-    this.velocity.x = 0;
-    this.velocity.y = 0;
+    this.velocity = new Vector2d(0, 0);
     this.movable = movable; // Can be moved by collisions
     this.physics = physics;
     this.color = "#000";
+    this.verts = [];
+
+    var w = this.width / 2;
+    var h = this.height / 2;
+    this.verts.push(new Vector2d(-w, -h));
+    this.verts.push(new Vector2d(-w, h));
+    this.verts.push(new Vector2d(w, h));
+    this.verts.push(new Vector2d(w, -h));
+
     GAME_OBJECTS.push(this);
   }
 
+  move(vector) {
+    if (vector instanceof Vector2d) {
+      this.pos.add(vector);
+    }
+    else throw "Invalid argument";
+  }
+
   get_rect(local_coordinates) {
-    var x = this.x;
-    var y = this.y;
+    var x = this.pos.x;
+    var y = this.pos.y;
     var w = this.width / 2;
     var h = this.height / 2;
     if (local_coordinates) return [-w, -h, w*2, h*2];
     else return [x-w, y-h, w*2, h*2];
+  }
+
+  get_verts() {
+    //var x = this.x;
+    //var y = this.y;
+    /*
+    var w = this.width / 2;
+    var h = this.height / 2;
+    var verts = [];
+    var radians = deg2rad(this.rotation)
+    for (var x = -w; x <= w; x += 2*w) {
+      for (var y = -h; y <= h; y += 2*h) {
+        var vec1 = new Vector2d(-w, h).rotate(radians); // Rotated coordinates in local space
+        var vec2 = new Vector2d(-w, -h).rotate(radians);
+        var vec3 = new Vector2d(w, -h).rotate(radians);
+        var vec4 = new Vector2d(w, h).rotate(radians);
+        //verts.push(vec.add(new Vector2d(this.x, this.y))); // World space
+        verts.push(vec); // Local space
+      }
+    }
+    */
+    var radians = deg2rad(this.rotation)
+    var rotated_verts = [];
+    for (var ind in this.verts) {
+      rotated_verts.push(this.verts[ind].clone().rotate(radians));
+    }
+    return rotated_verts;
   }
 
   on_collision(obj) {
@@ -87,8 +222,7 @@ class GameObject {
     */
     if (this.movable) {
       // Move by velocity, if it has any
-      this.x += this.velocity.x;
-      this.y += this.velocity.y;
+      this.move(this.velocity);
 
       // Get all colliding objects
       var collisions = GetCollisions(this);
@@ -97,27 +231,21 @@ class GameObject {
       var done = false;
       var max_attempts = 5;
       while(done === false && attempts < max_attempts) {
-        var prev_x = this.x;
-        var prev_y = this.y;
-        var prev_velo_x = this.velocity.x;
-        var prev_velo_y = this.velocity.y;
+        var prev_pos = this.pos.clone();
+        var prev_velo = this.velocity.clone();
         done = true;
-        for (i = 0; i < collisions.length; i++) {
+        if (collisions.length > 0) {
+          console.log(collisions);
+        }
+
+        for (var i = 0; i < collisions.length; i++) {
           // Loop over all collisions one at a time
           var collision = collisions[i];
-          var obj1 = collision["obj1"]; // This object (redundant)
-          var obj2 = collision["obj2"]; // The colliding object
-          var key = collision["direction"];
-
-          // Move this object the minimum distance required to solve collision
-          if (key == "up" || key == "down") {
-            this.y -= collision[key];
-            this.velocity.y = -this.velocity.y; // 'Bounce' off the object by switching direction
-          }
-          else if (key == "left" || key == "right") {
-            this.x -= collision[key];
-            this.velocity.x = -this.velocity.x; // 'Bounce' off the object by switching direction
-          }
+          var obj1 = collision.obj1; // This object (redundant)
+          var obj2 = collision.obj2; // The colliding object
+          var dir = collision.direction.clone();
+          this.move(dir.clone().multiply(collision.magnitude));
+          this.velocity.reflect(dir);
 
           // Get all new collisions after moving
           var new_collisions = GetCollisions(this);
@@ -129,10 +257,8 @@ class GameObject {
           }
           else if (i < collisions.length-1) {
             // Fail! Move back to original position and attempt to solve the next collision
-            this.x = prev_x;
-            this.y = prev_y;
-            this.velocity.x = prev_velo_x;
-            this.velocity.y = prev_velo_y;
+            this.pos = prev_pos;
+            this.velocity = prev_velo;
           }
           else {
             // Fail! No collisions remaining. Try to resolve collisions from the new position
@@ -153,7 +279,7 @@ class GameObject {
   draw() {
     CTX.save();
     CTX.fillStyle = this.color;
-    CTX.translate(this.x, this.y);
+    CTX.translate(this.pos.x, this.pos.y);
     CTX.rotate(-this.rotation * (Math.PI/180));
     CTX.fillRect.apply(CTX, this.get_rect(true));
     CTX.restore();
@@ -183,12 +309,12 @@ class Tank extends GameObject {
 
   destroy() {
     END_ROUND = true;
-    for (i = 0; i < 360; i += 60) {
+    for (var i = 0; i < 360; i += 60) {
       // Spawn a ring of bullets on death
       var radians = i * (Math.PI/180);
       var off_x = -this.width * 1.1 * Math.sin(radians);
       var off_y = -this.width * 1.1 * Math.cos(radians);
-      new Bullet(this.x + off_x, this.y + off_y, i, this);
+      new Bullet(this.pos.x + off_x, this.pos.y + off_y, i, this);
     }
     super.destroy();
   }
@@ -200,13 +326,17 @@ class Tank extends GameObject {
     if (this.fire_delay > 0) this.fire_delay--;
     var p = this.player;
     var radians = this.rotation * (Math.PI/180);
+
     if ((p == P1 && KEYSTATE[P1_UP]) || (p == P2 && KEYSTATE[P2_UP])) {
-      this.x -= this.speed * Math.sin(radians);
-      this.y -= this.speed * Math.cos(radians);
+      this.velocity.x = -this.speed * Math.sin(radians);
+      this.velocity.y = -this.speed * Math.cos(radians);
     }
     else if ((p == P1 && KEYSTATE[P1_DOWN]) || (p == P2 && KEYSTATE[P2_DOWN])) {
-      this.x += this.speed * Math.sin(radians);
-      this.y += this.speed * Math.cos(radians);
+      this.velocity.x = this.speed * Math.sin(radians);
+      this.velocity.y = this.speed * Math.cos(radians);
+    }
+    else {
+      this.velocity = new Vector2d(0, 0);
     }
     if ((p == P1 && KEYSTATE[P1_LEFT]) || (p == P2 && KEYSTATE[P2_LEFT])) {
       this.rotation += this.turn_speed;
@@ -223,7 +353,7 @@ class Tank extends GameObject {
         this.fire_delay = this.max_fire_delay;
         var off_x = -this.width * 1.1 * Math.sin(radians);
         var off_y = -this.width * 1.1 * Math.cos(radians);
-        new Bullet(this.x + off_x, this.y + off_y, this.rotation, this);
+        new Bullet(this.pos.x + off_x, this.pos.y + off_y, this.rotation, this);
       }
 
     }
@@ -231,8 +361,8 @@ class Tank extends GameObject {
   }
 
   draw() {
-    var x = this.x;
-    var y = this.y;
+    var x = this.pos.x;
+    var y = this.pos.y;
     var s = this.width/2;
     CTX.save();
     var red = Math.round(255 - (255 * (this.hp/this.max_hp)));
@@ -288,48 +418,87 @@ class Bullet extends GameObject {
 ===============================================================================
 */
 
-function RectRectIntersect(rect1, rect2) {
+class Collision {
+  constructor(game_obj1, game_obj2) {
+    this.obj1 = game_obj1;
+    this.obj2 = game_obj2;
+    this.inverted = false;
+    this.has_collided = false;
+    this.direction = new Vector2d(0, 0); // Direction of penetration
+    this.magnitude = Number.NEGATIVE_INFINITY; // Shortest distance of penetration
+  }
+}
+
+function getSATCollision(game_obj1, game_obj2) {
   /*
-    Used for checking collisions between two rectangles.
+    Uses Separating Axis Test to get the direction and magnitude of
+    any possible collision between given two objects.
   */
-  ax = rect1[0];
-  ay = rect1[1];
-  aw = rect1[2];
-  ah = rect1[3];
-  bx = rect2[0];
-  by = rect2[1];
-  bw = rect2[2];
-  bh = rect2[3];
-  var axIntersect = ax < (bx + bw);
-  var bxIntersect = bx < (ax + aw);
-  var ayIntersect = ay < (by + bh);
-  var byIntersect = by < (ay + ah);
-  var collision = {};
-  //console.log(ax);
-  if (axIntersect && bxIntersect && ayIntersect && byIntersect) {
-    // Collision detected, calculate intersecting distances from all
-    // directions.
-
-    collision["up"] = ay - (by+bh); // How much the rect intersects from below
-    collision["down"] = ay+ah - by; // How much the rect intersects from above
-    collision["left"] = ax+aw - bx; // ... from left
-    collision["right"] = ax - (bx+bw); // ... from right
-    var min = collision["up"];
-    var min_key = "up";
-    for (direction in collision) {
-      var value = collision[direction];
-      if (Math.abs(value) < Math.abs(min)) {
-        min = value;
-        min_key = direction;
-      }
-
+  var obj1 = game_obj1;
+  var obj2 = game_obj2;
+  var verts1 = game_obj1.get_verts();
+  var verts2 = game_obj2.get_verts();
+  var pos1 = game_obj1.pos.clone();
+  var pos2 = game_obj2.pos.clone();
+  var collision = new Collision(game_obj1, game_obj2);
+  collision.has_collided = false;
+  for (var i = 0; i < verts1.length + verts2.length; i++) {
+    if (i < verts1.length) {
+      var vert = verts1[i];
+      if (i < verts1.length-1) var next_vert = verts1[i+1];
+      else var next_vert = verts1[0];
     }
-    collision["direction"] = min_key;
-    collision["collision"] = true;
+    else {
+      var vert = verts2[i - verts1.length];
+      if (i < verts1.length+verts2.length-1) var next_vert = verts2[i+1 - verts1.length];
+      else var next_vert = verts2[0];
+    }
+
+    var side = next_vert.clone().subtract(vert).get_unit_vector();
+    var axis = side.get_right_normal();
+    var min_dist1 = verts1[0].get_dot_product(axis);
+    var max_dist1 = min_dist1;
+    for (var j = 1; j < verts1.length; j++) {
+      var distance = verts1[j].get_dot_product(axis);
+      if (distance < min_dist1) min_dist1 = distance;
+      else if (distance > max_dist1) max_dist1 = distance;
+    }
+
+    var min_dist2 = verts2[0].get_dot_product(axis);
+    var max_dist2 = min_dist2;
+    for (var j = 1; j < verts2.length; j++) {
+      var distance = verts2[j].get_dot_product(axis);
+      if (distance < min_dist2) min_dist2 = distance;
+      else if (distance > max_dist2) max_dist2 = distance;
+    }
+    var d = new Vector2d(pos2.x - pos1.x, pos2.y - pos1.y).get_dot_product(axis);
+    if (d < 0) {
+      axis = axis.get_inverted();
+      d = -d;
+    }
+    //d = Math.abs(d);
+    var gap1 = d - max_dist1 + min_dist2;
+    var gap2 = d - max_dist2 + min_dist1;
+    if (gap1 >= COLLISION_DEADZONE && gap2 >= COLLISION_DEADZONE) {
+      // No collision on this axis - no need to check other axes
+      //console.log("No collision");
+      collision.has_collided = false;
+      return collision;
+    }
+    if (gap1 < COLLISION_DEADZONE && gap1 > collision.magnitude) {
+      collision.magnitude = gap1;
+      collision.direction = axis;
+    }
+    if (gap2 < COLLISION_DEADZONE && gap2 > collision.magnitude) {
+      //console.log("INVERTED!!");
+      collision.magnitude = gap2;
+      collision.inverted = true;
+      collision.direction = axis;
+      //collision.direction = axis.get_inverted();
+      //collision.direction = axis;
+    }
   }
-  else {
-    collision["collision"] = false;
-  }
+  collision.has_collided = true;
   return collision;
 }
 
@@ -341,10 +510,8 @@ function GetCollisions(obj) {
   for (obj_ind in GAME_OBJECTS) {
     var other_obj = GAME_OBJECTS[obj_ind];
     if (obj != other_obj) { // Don't check collision with itself
-      var collision = RectRectIntersect(obj.get_rect(false), other_obj.get_rect(false));
-      if (collision["collision"] === true) {
-        collision["obj1"] = obj;
-        collision["obj2"] = other_obj;
+      var collision = getSATCollision(obj, other_obj);
+      if (collision.has_collided === true) {
         collisions.push(collision);
       }
     }
@@ -516,7 +683,7 @@ function maze_generator_kruskal() {
       because I'm lazy and it is a perfectly fine function.
     */
     var j, x, i;
-    for (i = a.length; i; i--) {
+    for (var i = a.length; i; i--) {
       j = Math.floor(Math.random() * i);
       x = a[i - 1];
       a[i - 1] = a[j];
@@ -554,11 +721,11 @@ function maze_generator_kruskal() {
   var cells = [];
   var num_cells_x = Math.floor(WIDTH / CELL_SIZE);
   var num_cells_y = Math.floor(HEIGHT / CELL_SIZE);
-  for (i = 0; i < num_cells_x; i++) {
+  for (var i = 0; i < num_cells_x; i++) {
     var x = i * CELL_SIZE + CELL_SIZE / 2;
     var column = []
 
-    for (j = 0; j < num_cells_y; j++) {
+    for (var j = 0; j < num_cells_y; j++) {
       var y = j * CELL_SIZE + CELL_SIZE / 2;
       new_cell = new Cell(x, y, i, j);
       column[j] = new_cell;
@@ -570,8 +737,8 @@ function maze_generator_kruskal() {
   var right_walls = [];
   var bottom_walls = [];
   var cell_sets = [];
-  for (i = 0; i < num_cells_x; i++) {
-    for (j = 0; j < num_cells_y; j++) {
+  for (var i = 0; i < num_cells_x; i++) {
+    for (var j = 0; j < num_cells_y; j++) {
       cell = cells[i][j];
       cell_sets.push(new Set([cell]));
       right_walls.push(cell);
