@@ -25,7 +25,7 @@ var TANK_SPEED = 1;
 var TANK_TURN_SPEED = 5;
 var WALL_WIDTH = 2;
 var CELL_SIZE = 50;
-var COLLISION_DEADZONE = -0.001;
+var EPSILON = 0.001; // Used for comparing floats
 
 // Global variables (Do not attempt to configure)
 var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
@@ -57,6 +57,7 @@ class Vector2d {
 
   rotate(radians) {
     // Rotates coordinates counterclockwise
+    //radians=-radians
     if (radians != 0) {
       var x = this.x;
       var y = this.y;
@@ -138,14 +139,13 @@ class Vector2d {
 };
 
 class GameObject {
-  constructor(x, y, width, height, movable = false, physics = false) {
+  constructor(x, y, width, height, movable = false) {
     this.pos = new Vector2d(x, y);
     this.width = width;
     this.height = height;
     this.rotation = 0;
     this.velocity = new Vector2d(0, 0);
     this.movable = movable; // Can be moved by collisions
-    this.physics = physics;
     this.color = "#000";
     this.verts = [];
 
@@ -176,24 +176,6 @@ class GameObject {
   }
 
   get_verts() {
-    //var x = this.x;
-    //var y = this.y;
-    /*
-    var w = this.width / 2;
-    var h = this.height / 2;
-    var verts = [];
-    var radians = deg2rad(this.rotation)
-    for (var x = -w; x <= w; x += 2*w) {
-      for (var y = -h; y <= h; y += 2*h) {
-        var vec1 = new Vector2d(-w, h).rotate(radians); // Rotated coordinates in local space
-        var vec2 = new Vector2d(-w, -h).rotate(radians);
-        var vec3 = new Vector2d(w, -h).rotate(radians);
-        var vec4 = new Vector2d(w, h).rotate(radians);
-        //verts.push(vec.add(new Vector2d(this.x, this.y))); // World space
-        verts.push(vec); // Local space
-      }
-    }
-    */
     var radians = deg2rad(this.rotation)
     var rotated_verts = [];
     for (var ind in this.verts) {
@@ -235,7 +217,7 @@ class GameObject {
         var prev_velo = this.velocity.clone();
         done = true;
         if (collisions.length > 0) {
-          console.log(collisions);
+          //console.log(collisions);
         }
 
         for (var i = 0; i < collisions.length; i++) {
@@ -280,8 +262,16 @@ class GameObject {
     CTX.save();
     CTX.fillStyle = this.color;
     CTX.translate(this.pos.x, this.pos.y);
-    CTX.rotate(-this.rotation * (Math.PI/180));
-    CTX.fillRect.apply(CTX, this.get_rect(true));
+    //CTX.rotate(-this.rotation * (Math.PI/180));
+    var verts = this.get_verts();
+    CTX.beginPath();
+    CTX.moveTo(verts[0].x, verts[0].y);
+    for (var vert of verts) {
+      CTX.lineTo(vert.x, vert.y);
+    }
+    CTX.lineTo(vert.x, vert.y);
+    CTX.fill();
+    //CTX.fillRect.apply(CTX, this.get_rect(true));
     CTX.restore();
   }
 };
@@ -289,7 +279,7 @@ class GameObject {
 
 class Tank extends GameObject {
   constructor(x, y, player) {
-    super(x, y, TANK_SIZE, TANK_SIZE, true, false); // Movable=true, physics=false
+    super(x, y, TANK_SIZE, TANK_SIZE, true); // Movable=true
     this.player = player;
     this.speed = 1;
     this.turn_speed = 5;
@@ -299,6 +289,14 @@ class Tank extends GameObject {
     this.ammo = this.max_ammo;
     this.max_hp = 10;
     this.hp = this.max_hp;
+
+    // Add a coarse hitbox for gun
+    var w = this.width / 2;
+    var h = this.height / 2;
+    var last_vert = this.verts.pop();
+    this.verts.push(new Vector2d(w*2, h/2));
+    this.verts.push(new Vector2d(w*2, -h/2));
+    this.verts.push(last_vert);
   }
 
   damage(amount) {
@@ -311,9 +309,9 @@ class Tank extends GameObject {
     END_ROUND = true;
     for (var i = 0; i < 360; i += 60) {
       // Spawn a ring of bullets on death
-      var radians = i * (Math.PI/180);
-      var off_x = -this.width * 1.1 * Math.sin(radians);
-      var off_y = -this.width * 1.1 * Math.cos(radians);
+      var radians = deg2rad(i);
+      var off_x = -this.width * 1.1 * Math.cos(radians);
+      var off_y = -this.width * 1.1 * Math.sin(radians);
       new Bullet(this.pos.x + off_x, this.pos.y + off_y, i, this);
     }
     super.destroy();
@@ -325,75 +323,64 @@ class Tank extends GameObject {
     */
     if (this.fire_delay > 0) this.fire_delay--;
     var p = this.player;
-    var radians = this.rotation * (Math.PI/180);
+    var radians = deg2rad(this.rotation);
 
     if ((p == P1 && KEYSTATE[P1_UP]) || (p == P2 && KEYSTATE[P2_UP])) {
-      this.velocity.x = -this.speed * Math.sin(radians);
-      this.velocity.y = -this.speed * Math.cos(radians);
+      this.velocity.x = this.speed * Math.cos(radians);
+      this.velocity.y = this.speed * Math.sin(radians);
     }
     else if ((p == P1 && KEYSTATE[P1_DOWN]) || (p == P2 && KEYSTATE[P2_DOWN])) {
-      this.velocity.x = this.speed * Math.sin(radians);
-      this.velocity.y = this.speed * Math.cos(radians);
+      this.velocity.x = -this.speed * Math.cos(radians);
+      this.velocity.y = -this.speed * Math.sin(radians);
     }
     else {
       this.velocity = new Vector2d(0, 0);
     }
     if ((p == P1 && KEYSTATE[P1_LEFT]) || (p == P2 && KEYSTATE[P2_LEFT])) {
-      this.rotation += this.turn_speed;
-      if (this.rotation >= 360) this.rotation -= 360;
-    }
-    else if ((p == P1 && KEYSTATE[P1_RIGHT]) || (p == P2 && KEYSTATE[P2_RIGHT])) {
       this.rotation -= this.turn_speed;
       if (this.rotation < 0) this.rotation += 360;
     }
+    else if ((p == P1 && KEYSTATE[P1_RIGHT]) || (p == P2 && KEYSTATE[P2_RIGHT])) {
+      this.rotation += this.turn_speed;
+      if (this.rotation >= 360) this.rotation -= 360;
+    }
+
+    super.update(); // Move and check collisions before firing
+
     if ((p == P1 && KEYSTATE[P1_FIRE]) || (p == P2 && KEYSTATE[P2_FIRE])) {
       //p === P1 ? delete KEYSTATE[P1_FIRE] : delete KEYSTATE[P2_FIRE];
       if (this.fire_delay === 0 && this.ammo > 0) {
         this.ammo--;
         this.fire_delay = this.max_fire_delay;
-        var off_x = -this.width * 1.1 * Math.sin(radians);
-        var off_y = -this.width * 1.1 * Math.cos(radians);
+        var off_x = this.width * 1.3 * Math.cos(radians);
+        var off_y = this.width * 1.3 * Math.sin(radians);
         new Bullet(this.pos.x + off_x, this.pos.y + off_y, this.rotation, this);
       }
-
     }
-    super.update(); // Checks collisions
-  }
-
-  draw() {
-    var x = this.pos.x;
-    var y = this.pos.y;
-    var s = this.width/2;
-    CTX.save();
-    var red = Math.round(255 - (255 * (this.hp/this.max_hp)));
-    CTX.fillStyle = "rgb(" + red + ",0,0)";
-    CTX.translate(x, y);
-    CTX.rotate(-this.rotation * (Math.PI/180));
-    CTX.fillRect(-s, -s, s*2, s*2); // Draw tank body
-    CTX.fillRect(-s/2, -s*2, s, s*2); // Draw gun
-    CTX.restore();
   }
 };
 
 
 class Bullet extends GameObject {
   constructor(x, y, direction, owner_tank) {
-    super(x, y, 5, 5, true, true);
+    super(x, y, 5, 5, true);
     this.remaining_bounces = 10;
+    this.first_bounce = true;
     this.speed = 1.5;
     this.tank = owner_tank;
     this.color = "rgb(" +
       Math.round(Math.random() * 255) + "," +
       Math.round(Math.random() * 255) + "," +
       Math.round(Math.random() * 255) + ")";
-    var radians = direction * (Math.PI/180);
-    this.velocity.x = -this.speed * Math.sin(radians);
-    this.velocity.y = -this.speed * Math.cos(radians);
+    var radians = deg2rad(direction);
+    this.velocity.x = this.speed * Math.cos(radians);
+    this.velocity.y = this.speed * Math.sin(radians);
     this.damage = 4;
   }
 
   on_collision(obj) {
     this.remaining_bounces--;
+    this.first_bounce = false;
     if (this.remaining_bounces < 1) {
       this.destroy();
     }
@@ -422,7 +409,6 @@ class Collision {
   constructor(game_obj1, game_obj2) {
     this.obj1 = game_obj1;
     this.obj2 = game_obj2;
-    this.inverted = false;
     this.has_collided = false;
     this.direction = new Vector2d(0, 0); // Direction of penetration
     this.magnitude = Number.NEGATIVE_INFINITY; // Shortest distance of penetration
@@ -433,6 +419,9 @@ function getSATCollision(game_obj1, game_obj2) {
   /*
     Uses Separating Axis Test to get the direction and magnitude of
     any possible collision between given two objects.
+    https://en.wikipedia.org/wiki/Hyperplane_separation_theorem
+
+    Objects can have any convex shape. Circles are a special case.
   */
   var obj1 = game_obj1;
   var obj2 = game_obj2;
@@ -443,6 +432,7 @@ function getSATCollision(game_obj1, game_obj2) {
   var collision = new Collision(game_obj1, game_obj2);
   collision.has_collided = false;
   for (var i = 0; i < verts1.length + verts2.length; i++) {
+    // Calculate next axis by taking the normal of a side of one object
     if (i < verts1.length) {
       var vert = verts1[i];
       if (i < verts1.length-1) var next_vert = verts1[i+1];
@@ -453,9 +443,10 @@ function getSATCollision(game_obj1, game_obj2) {
       if (i < verts1.length+verts2.length-1) var next_vert = verts2[i+1 - verts1.length];
       else var next_vert = verts2[0];
     }
-
     var side = next_vert.clone().subtract(vert).get_unit_vector();
     var axis = side.get_right_normal();
+
+    // Get minimum and maximum projections on axis from center of obj1
     var min_dist1 = verts1[0].get_dot_product(axis);
     var max_dist1 = min_dist1;
     for (var j = 1; j < verts1.length; j++) {
@@ -464,6 +455,7 @@ function getSATCollision(game_obj1, game_obj2) {
       else if (distance > max_dist1) max_dist1 = distance;
     }
 
+    // Get minimum and maximum projections on axis from center of obj2
     var min_dist2 = verts2[0].get_dot_product(axis);
     var max_dist2 = min_dist2;
     for (var j = 1; j < verts2.length; j++) {
@@ -471,31 +463,26 @@ function getSATCollision(game_obj1, game_obj2) {
       if (distance < min_dist2) min_dist2 = distance;
       else if (distance > max_dist2) max_dist2 = distance;
     }
+
+    // Calculate the distance between objects and flip axis if necessary
     var d = new Vector2d(pos2.x - pos1.x, pos2.y - pos1.y).get_dot_product(axis);
-    if (d < 0) {
-      axis = axis.get_inverted();
-      d = -d;
-    }
-    //d = Math.abs(d);
+
+    // Calculate the gaps between objects projected along axis
+    // Negative gap means that there is a collision on this axis
     var gap1 = d - max_dist1 + min_dist2;
-    var gap2 = d - max_dist2 + min_dist1;
-    if (gap1 >= COLLISION_DEADZONE && gap2 >= COLLISION_DEADZONE) {
-      // No collision on this axis - no need to check other axes
-      //console.log("No collision");
+    var gap2 = - d - max_dist2 + min_dist1;
+    if (gap1 >= -EPSILON || gap2 >= -EPSILON) {
+      // No collision on this axis - these objects cannot be colliding!
       collision.has_collided = false;
       return collision;
     }
-    if (gap1 < COLLISION_DEADZONE && gap1 > collision.magnitude) {
+    if (gap1 > gap2 && gap1 > collision.magnitude) {
       collision.magnitude = gap1;
       collision.direction = axis;
     }
-    if (gap2 < COLLISION_DEADZONE && gap2 > collision.magnitude) {
-      //console.log("INVERTED!!");
+    if (gap2 > gap1 && gap2 > collision.magnitude) {
       collision.magnitude = gap2;
-      collision.inverted = true;
-      collision.direction = axis;
-      //collision.direction = axis.get_inverted();
-      //collision.direction = axis;
+      collision.direction = axis.get_inverted();
     }
   }
   collision.has_collided = true;
@@ -565,21 +552,24 @@ function main() {
   var reset_counter_max = 200;
   var previous_time = Date.now(); // Time in milliseconds
   var frames = 0;
+  var iteration_time = 0;
 
   var loop = function() {
     /*
       The main loop where all the magic happens.
     */
-
+    var start_time = Date.now();
     // Step the game forwards and draw everything
     update();
     draw();
+    iteration_time += Date.now() - start_time;
 
     // FPS-counter for performance analysis
     frames++;
     if (Date.now() - previous_time > 1000) {
-      console.log(frames);
+      console.log(frames + "  :  " + (iteration_time/frames));
       previous_time = Date.now();
+      iteration_time = 0;
       frames = 0;
     }
 
