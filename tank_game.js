@@ -149,6 +149,8 @@ class GameObject {
     this.color = "#000";
     this.verts = [];
     this.ignored_collision_objs = [];
+    this.circle = false;
+    this.radius = 0;
 
     var w = this.width / 2;
     var h = this.height / 2;
@@ -263,16 +265,19 @@ class GameObject {
     CTX.save();
     CTX.fillStyle = this.color;
     CTX.translate(this.pos.x, this.pos.y);
-    //CTX.rotate(-this.rotation * (Math.PI/180));
-    var verts = this.get_verts();
     CTX.beginPath();
-    CTX.moveTo(verts[0].x, verts[0].y);
-    for (var vert of verts) {
+    if (this.circle === true) {
+      CTX.arc(0, 0, this.radius, 0, 2 * Math.PI);
+    }
+    else {
+      var verts = this.get_verts();
+      CTX.moveTo(verts[0].x, verts[0].y);
+      for (var vert of verts) {
+        CTX.lineTo(vert.x, vert.y);
+      }
       CTX.lineTo(vert.x, vert.y);
     }
-    CTX.lineTo(vert.x, vert.y);
     CTX.fill();
-    //CTX.fillRect.apply(CTX, this.get_rect(true));
     CTX.restore();
   }
 };
@@ -388,6 +393,8 @@ class Bullet extends GameObject {
     this.velocity.x = this.speed * Math.cos(radians);
     this.velocity.y = this.speed * Math.sin(radians);
     this.damage = 4;
+    this.radius = this.width/2;
+    this.circle = true;
   }
 
   on_collision(obj) {
@@ -412,6 +419,7 @@ class Bullet extends GameObject {
     if (this.tank) this.tank.ammo++;
     super.destroy();
   }
+
 };
 
 
