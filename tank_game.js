@@ -148,6 +148,7 @@ class GameObject {
     this.movable = movable; // Can be moved by collisions
     this.color = "#000";
     this.verts = [];
+    this.ignored_collision_objs = [];
 
     var w = this.width / 2;
     var h = this.height / 2;
@@ -289,18 +290,29 @@ class Tank extends GameObject {
     this.ammo = this.max_ammo;
     this.max_hp = 10;
     this.hp = this.max_hp;
+    this.color_by_damage();
 
-    // Add a coarse hitbox for gun
+    // Add a gun
     var w = this.width / 2;
     var h = this.height / 2;
     var last_vert = this.verts.pop();
+    this.verts.push(new Vector2d(w, h/2));
     this.verts.push(new Vector2d(w*2, h/2));
     this.verts.push(new Vector2d(w*2, -h/2));
+    this.verts.push(new Vector2d(w, -h/2));
     this.verts.push(last_vert);
   }
 
+  color_by_damage() {
+    var red = Math.round(255 - (255 * (this.hp/this.max_hp)));
+    this.color = "rgb(" + red + ",0,0)";
+  }
+
   damage(amount) {
-    if (amount > 0) this.hp -= amount;
+    if (amount > 0) {
+      this.hp -= amount;
+      this.color_by_damage();
+    }
     else console.log("WARNING: Attempted to damage by negative amount!!!");
     if (this.hp < 0) this.destroy();
   }
@@ -310,8 +322,8 @@ class Tank extends GameObject {
     for (var i = 0; i < 360; i += 60) {
       // Spawn a ring of bullets on death
       var radians = deg2rad(i);
-      var off_x = -this.width * 1.1 * Math.cos(radians);
-      var off_y = -this.width * 1.1 * Math.sin(radians);
+      var off_x = this.width * Math.cos(radians);
+      var off_y = this.width * Math.sin(radians);
       new Bullet(this.pos.x + off_x, this.pos.y + off_y, i, this);
     }
     super.destroy();
@@ -348,13 +360,12 @@ class Tank extends GameObject {
     super.update(); // Move and check collisions before firing
 
     if ((p == P1 && KEYSTATE[P1_FIRE]) || (p == P2 && KEYSTATE[P2_FIRE])) {
-      //p === P1 ? delete KEYSTATE[P1_FIRE] : delete KEYSTATE[P2_FIRE];
       if (this.fire_delay === 0 && this.ammo > 0) {
         this.ammo--;
         this.fire_delay = this.max_fire_delay;
-        var off_x = this.width * 1.3 * Math.cos(radians);
-        var off_y = this.width * 1.3 * Math.sin(radians);
-        new Bullet(this.pos.x + off_x, this.pos.y + off_y, this.rotation, this);
+        var off_x = this.width * 0.9 * Math.cos(radians);
+        var off_y = this.width * 0.9 * Math.sin(radians);
+        var bullet = new Bullet(this.pos.x + off_x, this.pos.y + off_y, this.rotation, this);
       }
     }
   }
@@ -368,6 +379,7 @@ class Bullet extends GameObject {
     this.first_bounce = true;
     this.speed = 1.5;
     this.tank = owner_tank;
+    this.ignored_collision_objs.push(this.tank); // Don't collide with tank before first bounce
     this.color = "rgb(" +
       Math.round(Math.random() * 255) + "," +
       Math.round(Math.random() * 255) + "," +
@@ -380,7 +392,13 @@ class Bullet extends GameObject {
 
   on_collision(obj) {
     this.remaining_bounces--;
-    this.first_bounce = false;
+    if (this.first_bounce) {
+      // After first bounce bullet can collide with the shooting tank
+      this.first_bounce = false;
+      var ind = this.ignored_collision_objs.indexOf(this.tank);
+      if (ind > -1) delete this.ignored_collision_objs[ind];
+    }
+
     if (this.remaining_bounces < 1) {
       this.destroy();
     }
@@ -493,10 +511,16 @@ function GetCollisions(obj) {
   /*
     Checks collisions given gameobject and all other gameobjects.
   */
+  var ign1 = obj.ignored_collision_objs;
+  ign1.push(obj); // Don't check collision with itself
   var collisions = [];
+  if (obj instanceof Bullet) {
+    console.log("blaa");
+  }
   for (obj_ind in GAME_OBJECTS) {
     var other_obj = GAME_OBJECTS[obj_ind];
-    if (obj != other_obj) { // Don't check collision with itself
+    var ign2 = other_obj.ignored_collision_objs;
+    if (ign1.indexOf(other_obj) === -1 && ign2.indexOf(obj) === -1) {
       var collision = getSATCollision(obj, other_obj);
       if (collision.has_collided === true) {
         collisions.push(collision);
