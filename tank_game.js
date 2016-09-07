@@ -148,6 +148,7 @@ class GameObject {
     this.movable = movable; // Can be moved by collisions
     this.color = "#000";
     this.verts = [];
+    this.rotated_verts = [];
     this.ignored_collision_objs = [this];
     this.circle = false;
     this.radius = 0;
@@ -160,6 +161,15 @@ class GameObject {
     this.verts.push(new Vector2d(w, -h));
 
     GAME_OBJECTS.push(this);
+  }
+
+  rotate(degrees) {
+    if (degrees != 0) {
+      this.rotation += degrees;
+      while (this.rotation < 0) this.rotation += 360;
+      while (this.rotation > 360) this.rotation -= 360;
+      this.calculate_rotated_verts();
+    }
   }
 
   move(vector) {
@@ -178,13 +188,18 @@ class GameObject {
     else return [x-w, y-h, w*2, h*2];
   }
 
-  get_verts() {
+  calculate_rotated_verts() {
     var radians = deg2rad(this.rotation)
-    var rotated_verts = [];
-    for (var ind in this.verts) {
-      rotated_verts.push(this.verts[ind].clone().rotate(radians));
+    this.rotated_verts = [];
+    for (var vert of this.verts) {
+      this.rotated_verts.push(vert.clone().rotate(radians));
     }
-    return rotated_verts;
+    this.rotated_verts;
+  }
+
+  get_verts() {
+    if (this.rotated_verts.length === 0) this.calculate_rotated_verts();
+    return this.rotated_verts;
   }
 
   on_collision(obj) {
@@ -354,12 +369,11 @@ class Tank extends GameObject {
       this.velocity = new Vector2d(0, 0);
     }
     if ((p == P1 && KEYSTATE[P1_LEFT]) || (p == P2 && KEYSTATE[P2_LEFT])) {
-      this.rotation -= this.turn_speed;
-      if (this.rotation < 0) this.rotation += 360;
+      this.rotate(-this.turn_speed);
+
     }
     else if ((p == P1 && KEYSTATE[P1_RIGHT]) || (p == P2 && KEYSTATE[P2_RIGHT])) {
-      this.rotation += this.turn_speed;
-      if (this.rotation >= 360) this.rotation -= 360;
+      this.rotate(this.turn_speed);
     }
 
     super.update(); // Move and check collisions before firing
@@ -521,9 +535,6 @@ function GetCollisions(obj) {
   */
   var ign1 = obj.ignored_collision_objs;
   var collisions = [];
-  if (obj instanceof Bullet) {
-    console.log("blaa");
-  }
   for (obj_ind in GAME_OBJECTS) {
     var other_obj = GAME_OBJECTS[obj_ind];
     var ign2 = other_obj.ignored_collision_objs;
