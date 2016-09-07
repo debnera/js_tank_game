@@ -148,7 +148,7 @@ class GameObject {
     this.movable = movable; // Can be moved by collisions
     this.color = "#000";
     this.verts = [];
-    this.ignored_collision_objs = [];
+    this.ignored_collision_objs = [this];
     this.circle = false;
     this.radius = 0;
 
@@ -520,7 +520,6 @@ function GetCollisions(obj) {
     Checks collisions given gameobject and all other gameobjects.
   */
   var ign1 = obj.ignored_collision_objs;
-  ign1.push(obj); // Don't check collision with itself
   var collisions = [];
   if (obj instanceof Bullet) {
     console.log("blaa");
