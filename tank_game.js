@@ -4,6 +4,7 @@
 
 var WIDTH = 900;
 var HEIGHT = 600;
+var GUI_HEIGHT = 100;
 
 // Arrow keys
 var P1_UP = 38;
@@ -32,6 +33,8 @@ var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
 var END_ROUND = false;
 var P1 = 1;
 var P2 = 2;
+var P1_SCORE = 0;
+var P2_SCORE = 0;
 
 
 
@@ -339,6 +342,7 @@ class Tank extends GameObject {
 
   destroy() {
     END_ROUND = true;
+    this.player === P1 ? P2_SCORE++ : P1_SCORE++;
     for (var i = 0; i < 360; i += 60) {
       // Spawn a ring of bullets on death
       var radians = deg2rad(i);
@@ -566,7 +570,7 @@ function main() {
   */
   CANVAS = document.createElement("canvas")
   CANVAS.width = WIDTH;
-  CANVAS.height = HEIGHT;
+  CANVAS.height = HEIGHT + GUI_HEIGHT;
   CTX = CANVAS.getContext("2d");
 
   // Attempt to find a document element with specific id, otherwise attach the
@@ -669,12 +673,27 @@ function draw() {
   /*
     Handles all drawing on the HTML5 canvas.
   */
+
+  // Game
   CTX.fillStyle = "#fff";
   CTX.fillRect(0, 0, WIDTH, HEIGHT);
   for (obj_ind in GAME_OBJECTS) {
     obj = GAME_OBJECTS[obj_ind];
     obj.draw();
   }
+
+  // GUI
+  CTX.save();
+  CTX.translate(0, HEIGHT); // Move to GUI space
+  CTX.fillStyle = "#fff";
+  CTX.fillRect(0, 0, WIDTH, GUI_HEIGHT);
+  CTX.font = "30px Arial";
+  CTX.fillStyle = (P1_SCORE >= P2_SCORE) ? "green" : "red";
+  CTX.fillText("Player One: " + P1_SCORE, 30, 50);
+  CTX.fillStyle = (P2_SCORE >= P1_SCORE) ? "green" : "red";
+  CTX.fillText("Player Two: " + P2_SCORE, WIDTH - 200, 50);
+  CTX.restore();
+
 }
 
 
