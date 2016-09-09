@@ -6,19 +6,19 @@ var WIDTH = 900;
 var HEIGHT = 600;
 var GUI_HEIGHT = 100;
 
-// Arrow keys
-var P1_UP = 38;
-var P1_DOWN = 40;
-var P1_LEFT = 37;
-var P1_RIGHT = 39;
-var P1_FIRE = 191; // Character ' (or *)
-
 // WASD
-var P2_UP = 87;
-var P2_DOWN = 83;
-var P2_LEFT = 65;
-var P2_RIGHT = 68;
-var P2_FIRE = 49; // Character 1
+var P1_UP = 87;
+var P1_DOWN = 83;
+var P1_LEFT = 65;
+var P1_RIGHT = 68;
+var P1_FIRE = 49; // Character 1
+
+// Arrow keys
+var P2_UP = 38;
+var P2_DOWN = 40;
+var P2_LEFT = 37;
+var P2_RIGHT = 39;
+var P2_FIRE = 189; // Character -
 
 // Other settings
 var TANK_SIZE = 15;
@@ -692,8 +692,13 @@ function draw() {
   CTX.fillText("Player One: " + P1_SCORE, 30, 50);
   CTX.fillStyle = (P2_SCORE >= P1_SCORE) ? "green" : "red";
   CTX.fillText("Player Two: " + P2_SCORE, WIDTH - 200, 50);
+  CTX.fillStyle = "#000";
+  CTX.font = "16px Arial";
+  CTX.fillText("Move: WASD", 30, 80);
+  CTX.fillText("Fire: 1", 30, 100);
+  CTX.fillText("Move: Arrow keys", WIDTH - 200, 80);
+  CTX.fillText("Fire: -", WIDTH - 200, 100);
   CTX.restore();
-
 }
 
 
