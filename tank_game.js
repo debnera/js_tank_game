@@ -656,7 +656,6 @@ function init() {
   maze_generator_kruskal();
 
   // Create tanks at random locations
-
   for (var i = 0; i < 2; i++) {
     var x = (Math.floor(Math.random() * CELLS_X) + 0.5) * (CELL_SIZE);
     var y = (Math.floor(Math.random() * CELLS_Y) + 0.5) * (CELL_SIZE);
@@ -667,16 +666,7 @@ function init() {
     else {
       new Tank(x, y, P2);
     }
-  }/*
-  var x = Math.floor(Math.random() * WIDTH * CELL_SIZE);
-  var y = Math.floor(Math.random() * WIDTH * CELL_SIZE);
-  new Tank(x, y, P1);
-  var x = Math.floor(Math.random() * WIDTH * CELL_SIZE);
-  var y = Math.floor(Math.random() * WIDTH * CELL_SIZE);
-  new Tank(x, y, P2);*/
-  //loc1 = Math.floor(Math.random() * i);
-  //new Tank(25, 25, P1);
-  //new Tank(525, 525, P2);
+  }
 }
 
 function update() {
