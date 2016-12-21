@@ -29,6 +29,7 @@ var CELL_SIZE = 50;
 var EPSILON = 0.001; // Used for comparing floats
 
 // Global variables (Do not attempt to configure)
+var CELLS_X, CELLS_Y;
 var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
 var END_ROUND = false;
 var P1 = 1;
@@ -654,9 +655,28 @@ function init() {
   // Generate map
   maze_generator_kruskal();
 
-  // Create tanks
-  new Tank(25, 25, P1);
-  new Tank(525, 525, P2);
+  // Create tanks at random locations
+
+  for (var i = 0; i < 2; i++) {
+    var x = (Math.floor(Math.random() * CELLS_X) + 0.5) * (CELL_SIZE);
+    var y = (Math.floor(Math.random() * CELLS_Y) + 0.5) * (CELL_SIZE);
+    console.log(x + "  " + y);
+    if (i == 0) {
+      new Tank(x, y, P1);
+    }
+    else {
+      new Tank(x, y, P2);
+    }
+  }/*
+  var x = Math.floor(Math.random() * WIDTH * CELL_SIZE);
+  var y = Math.floor(Math.random() * WIDTH * CELL_SIZE);
+  new Tank(x, y, P1);
+  var x = Math.floor(Math.random() * WIDTH * CELL_SIZE);
+  var y = Math.floor(Math.random() * WIDTH * CELL_SIZE);
+  new Tank(x, y, P2);*/
+  //loc1 = Math.floor(Math.random() * i);
+  //new Tank(25, 25, P1);
+  //new Tank(525, 525, P2);
 }
 
 function update() {
@@ -775,13 +795,13 @@ function maze_generator_kruskal() {
 
   // Create cells to assist with maze generation
   var cells = [];
-  var num_cells_x = Math.floor(WIDTH / CELL_SIZE);
-  var num_cells_y = Math.floor(HEIGHT / CELL_SIZE);
-  for (var i = 0; i < num_cells_x; i++) {
+  CELLS_X = Math.floor(WIDTH / CELL_SIZE);
+  CELLS_Y = Math.floor(HEIGHT / CELL_SIZE);
+  for (var i = 0; i < CELLS_X; i++) {
     var x = i * CELL_SIZE + CELL_SIZE / 2;
     var column = []
 
-    for (var j = 0; j < num_cells_y; j++) {
+    for (var j = 0; j < CELLS_Y; j++) {
       var y = j * CELL_SIZE + CELL_SIZE / 2;
       new_cell = new Cell(x, y, i, j);
       column[j] = new_cell;
@@ -793,8 +813,8 @@ function maze_generator_kruskal() {
   var right_walls = [];
   var bottom_walls = [];
   var cell_sets = [];
-  for (var i = 0; i < num_cells_x; i++) {
-    for (var j = 0; j < num_cells_y; j++) {
+  for (var i = 0; i < CELLS_X; i++) {
+    for (var j = 0; j < CELLS_Y; j++) {
       cell = cells[i][j];
       cell_sets.push(new Set([cell]));
       right_walls.push(cell);
@@ -817,7 +837,7 @@ function maze_generator_kruskal() {
     // Right walls
     if (right_walls.length > 0 && Math.random() < vert_prob) {
       var cell = right_walls.pop();
-      if (cell.ind_x + 1 < num_cells_x) {
+      if (cell.ind_x + 1 < CELLS_X) {
         next_cell = cells[cell.ind_x+1][cell.ind_y];
         // Check if the cell on right belongs to the same set (already connected)
         if (join_cell_sets(cell, next_cell, cell_sets)) {
@@ -831,7 +851,7 @@ function maze_generator_kruskal() {
     // Bottom walls
     if (bottom_walls.length > 0 && Math.random() < horiz_prob) {
       var cell = bottom_walls.pop();
-      if (cell.ind_y + 1 < num_cells_y) {
+      if (cell.ind_y + 1 < CELLS_Y) {
         next_cell = cells[cell.ind_x][cell.ind_y+1];
         // Check if the cell below belongs to the same set (already connected)
         if (join_cell_sets(cell, next_cell, cell_sets)) {
