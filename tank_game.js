@@ -688,13 +688,14 @@ function main() {
 }
 
 function spawn_powerup() {
+  this.max_spawn_time = 20000; // Milliseconds
   if (typeof this.last_spawn == 'undefined') {
     this.last_spawn = Date.now();
-    this.next_spawn_in = Math.random() * 20;
+    this.next_spawn_in = Math.random() * this.max_spawn_time;
   }
   if (Date.now() - this.last_spawn > this.next_spawn_in) {
     this.last_spawn = Date.now();
-    this.next_spawn_in = Math.random() * 20;
+    this.next_spawn_in = Math.random() * this.max_spawn_time;
     let pos = get_random_location();
     new Powerup(pos.x, pos.y, PowerupType.get_random_type());
   }
