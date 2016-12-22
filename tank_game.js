@@ -395,6 +395,52 @@ class Tank extends GameObject {
   }
 };
 
+var PowerupType = {
+  'minigun' : 1,
+  'cannon' : 2,
+  'speed' : 3,
+  'get_random_type' :
+    function get_random_type() {
+      return Math.ceil(Math.random() * 3);
+    }
+};
+
+class Powerup extends GameObject {
+  constructor(x, y, type) {
+    super(x, y, 10, 10, false);
+    this.type = type;
+    this.turn_speed = 5;
+    this.re_color();
+  }
+
+  re_color() {
+    switch(this.type) {
+      case PowerupType.minigun:
+        this.color = "rgb(10, 200, 200)";
+        break;
+      case PowerupType.cannon:
+        this.color = "rgb(20, 50, 120)";
+        break;
+      case PowerupType.speed:
+        this.color = "rgb(150, 230, 255)";
+        break;
+      default:
+        console.log("Powerup has invalid type!");
+        this.color = "rgb(10, 10, 10)";
+    }
+  }
+
+  update() {
+    this.rotate(this.turn_speed);
+  }
+
+  on_collision(obj) {
+    if (obj instanceof Tank) {
+      //switch
+      this.destroy();
+    }
+  }
+};
 
 class Bullet extends GameObject {
   constructor(x, y, direction, owner_tank) {
@@ -607,18 +653,20 @@ function main() {
     */
     var start_time = Date.now();
     // Step the game forwards and draw everything
+    spawn_powerup();
     update();
     draw();
     iteration_time += Date.now() - start_time;
 
     // FPS-counter for performance analysis
+    /*
     frames++;
     if (Date.now() - previous_time > 1000) {
       console.log(frames + "  :  " + (iteration_time/frames));
       previous_time = Date.now();
       iteration_time = 0;
       frames = 0;
-    }
+    }*/
 
     // Start a new round if necessary
     if (END_ROUND === true) reset_counter++;
@@ -639,6 +687,26 @@ function main() {
   window.requestAnimationFrame(loop, CANVAS);
 }
 
+function spawn_powerup() {
+  if (typeof this.last_spawn == 'undefined') {
+    this.last_spawn = Date.now();
+    this.next_spawn_in = Math.random() * 20;
+  }
+  if (Date.now() - this.last_spawn > this.next_spawn_in) {
+    this.last_spawn = Date.now();
+    this.next_spawn_in = Math.random() * 20;
+    let pos = get_random_location();
+    new Powerup(pos.x, pos.y, PowerupType.get_random_type());
+  }
+}
+
+function get_random_location() {
+  // Gets a location, which is in the middle of a random cell.
+  var x = (Math.floor(Math.random() * CELLS_X) + 0.5) * (CELL_SIZE);
+  var y = (Math.floor(Math.random() * CELLS_Y) + 0.5) * (CELL_SIZE);
+  return new Vector2d(x, y);
+}
+
 function init() {
   /*
     Initialize global variables.
@@ -652,17 +720,14 @@ function init() {
   maze_generator_kruskal();
 
   // Create tanks at random locations
-  for (var i = 0; i < 2; i++) {
-    var x = (Math.floor(Math.random() * CELLS_X) + 0.5) * (CELL_SIZE);
-    var y = (Math.floor(Math.random() * CELLS_Y) + 0.5) * (CELL_SIZE);
-    console.log(x + "  " + y);
-    if (i == 0) {
-      new Tank(x, y, P1);
-    }
-    else {
-      new Tank(x, y, P2);
-    }
+
+  let pos = get_random_location();
+  new Tank(pos.x, pos.y, P1);
+  let pos2 = pos;
+  while (pos.x == pos2.x && pos.y == pos2.y) {
+    pos2 = get_random_location();
   }
+  new Tank(pos2.x, pos2.y, P2);
 }
 
 function update() {
