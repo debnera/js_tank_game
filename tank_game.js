@@ -646,11 +646,7 @@ function init() {
   GAME_OBJECTS = [];
   KEYSTATE = {}; // Reset the keystate to avoid stuck buttons
 
-  // Create border walls (top,bottom,left,right)
-  new GameObject(WIDTH/2, WALL_WIDTH/2, WIDTH, WALL_WIDTH);
-  new GameObject(WIDTH/2, HEIGHT-WALL_WIDTH/2, WIDTH, WALL_WIDTH);
-  new GameObject(WALL_WIDTH/2, HEIGHT/2, WALL_WIDTH, HEIGHT);
-  new GameObject(WIDTH - WALL_WIDTH/2, HEIGHT/2, WALL_WIDTH, HEIGHT);
+
 
   // Generate map
   maze_generator_kruskal();
@@ -782,6 +778,15 @@ function maze_generator_kruskal() {
     }
     return false;
   }
+  cell_size_min = 30;
+  cell_size_max = 100;
+  rand = Math.random();
+  CELL_SIZE = 30 + (rand * (100-30)); // A random number between min and max
+  CELL_SIZE = Math.floor(CELL_SIZE);
+  console.log(CELL_SIZE);
+  console.log(CELL_SIZE % 5);
+  CELL_SIZE -= CELL_SIZE % 5;
+  console.log(CELL_SIZE);
 
   // Create cells to assist with maze generation
   var cells = [];
@@ -862,14 +867,22 @@ function maze_generator_kruskal() {
       var y = cell.y;
       var s = CELL_SIZE/2;
       var w = WALL_WIDTH/2;
-      if (cell.bottom_wall) {
+      if (cell.bottom_wall && cell_ind != column.length-1) {
         new GameObject(x, y+s, s*2, w*2);
       }
-      if (cell.right_wall) {
+      if (cell.right_wall && column_ind != cells.length-1) {
         new GameObject(x+s, y, w*2, s*2);
       }
     }
   }
+
+  // Create border walls (top,bottom,left,right)
+  let map_width = CELLS_X * CELL_SIZE;
+  let map_height = CELLS_Y * CELL_SIZE;
+  new GameObject(map_width/2, WALL_WIDTH/2, map_width, WALL_WIDTH); // Top
+  new GameObject(map_width/2, map_height-WALL_WIDTH/2, map_width, WALL_WIDTH); // Bottom
+  new GameObject(WALL_WIDTH/2, map_height/2, WALL_WIDTH, map_height); // Left
+  new GameObject(map_width - WALL_WIDTH/2, map_height/2, WALL_WIDTH, map_height); // Right
 }
 
 main();
