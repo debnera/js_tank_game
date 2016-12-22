@@ -824,8 +824,8 @@ function maze_generator_kruskal() {
   // These variables adjust the proportion of removed horizontal and vertical
   // walls.
   var horiz_prob = 0.6; // value must be 0 < x <= 1
-  var vert_prob = 0.9; // value must be 0 < x <= 1
-  var remove_anyway_prob = 0.4; // Probability for removing extra walls
+  var vert_prob = 0.7; // value must be 0 < x <= 1
+  var remove_anyway_prob = 0.2; // Probability for removing extra walls
 
   // Remove all walls between disconnected cells
   while (right_walls.length > 0 && bottom_walls.length > 0) {
