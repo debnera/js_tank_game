@@ -52,7 +52,7 @@ function deg2rad(degrees) {
 
 class Vector2d {
   constructor(x, y) {
-    if (x == undefined || y == undefined) {
+    if (typeof x == 'undefined' || typeof  y == 'undefined') {
       throw "Invalid arguments";
     }
     this.x = x;
@@ -175,13 +175,12 @@ class GameObject {
   }
 
   damage(amount) {
-    if (this.destructible) {
+    if (this.destructible && this.hp > 0) {
       if (amount > 0) {
         this.hp -= amount;
         this.color_by_damage();
       }
       else console.log("WARNING: Attempted to damage by negative amount!!!");
-      if (this.hp <= 0) this.destroy();
     }
   }
 
@@ -255,6 +254,10 @@ class GameObject {
       Moves GameObject by its velocity and checks for collisions.
       If collisions are found, attempts to solve them by moving itself.
     */
+    if (this.hp <= 0) {
+      this.destroy();
+      return;
+    }
     if (this.movable) {
       // Move by velocity, if it has any
       this.move(this.velocity);
@@ -348,6 +351,8 @@ class Gun {
     Handles the firing of tank guns.
   */
   constructor(tank) {
+    this.bullet_size = 5;
+    this.bullet_speed = 1.5;
     this.ammo = 1000; // Max shots for current gun
     this.clip = 5; // Max simultaenous shots
     this.fire_delay = 0.5;
@@ -368,7 +373,7 @@ class Gun {
         this.clip--;
         this.ammo--;
         this.last_shot = Date.now();
-        bullet = new Bullet(x, y, direction, this.damage_amount, this);
+        bullet = new Bullet(x, y, direction, this.damage_amount, this, this.bullet_size, this.bullet_speed);
       }
     }
     return bullet;
@@ -383,6 +388,8 @@ class Gun {
 class Machinegun extends Gun {
   constructor(tank) {
     super(tank);
+    this.bullet_size = 2;
+    this.bullet_speed = 2;
     this.ammo = 75;
     this.clip = 15;
     this.fire_delay = 0.1;
@@ -395,8 +402,10 @@ class Machinegun extends Gun {
 class Heavygun extends Gun {
   constructor(tank) {
     super(tank);
-    this.ammo = 5;
-    this.clip = 2;
+    this.bullet_size = 20;
+    this.bullet_speed = 1.5;
+    this.ammo = 4;
+    this.clip = 4;
     this.fire_delay = 1;
     this.damage_amount = 1000;
     this.randomize_direction = false;
@@ -425,7 +434,7 @@ class Tank extends GameObject {
     this.color_by_damage();
 
     // Add a gun
-    this.gun = new Gun(this);
+    this.set_gun(GunTypes.normal);
     var w = this.width / 2;
     var h = this.height / 2;
     var last_vert = this.verts.pop();
@@ -464,6 +473,7 @@ class Tank extends GameObject {
       var off_x = this.width * Math.cos(radians);
       var off_y = this.width * Math.sin(radians);
       new Bullet(this.pos.x + off_x, this.pos.y + off_y, i, damage);
+      console.log("Ring of death");
     }
     super.destroy();
   }
@@ -548,6 +558,7 @@ class Powerup extends GameObject {
 
   update() {
     this.rotate(this.turn_speed);
+    super.update();
   }
 
   on_collision(obj) {
@@ -571,11 +582,15 @@ class Powerup extends GameObject {
 };
 
 class Bullet extends GameObject {
-  constructor(x, y, direction, damage, gun) {
-    super(x, y, 5, 5, true);
+  constructor(x, y, direction, damage, gun, size, speed) {
+    if (typeof speed == 'undefined') speed = 1.5;
+    if (typeof size == 'undefined') size = 5;
+    super(x, y, size, size, true);
     this.remaining_bounces = 10;
     this.first_bounce = true;
-    this.speed = 1.5;
+    this.spawn_time = Date.now();
+    this.ignore_owner_for = 2 * size / speed; // Can't hit owner for this duration (milliseconds)
+    this.speed = speed;
     this.gun = gun;
     if (this.gun && this.gun.tank) this.ignored_collision_objs.push(this.gun.tank); // Don't collide with tank before first bounce
     this.color.r =  Math.round(Math.random() * 255);
@@ -591,7 +606,7 @@ class Bullet extends GameObject {
 
   on_collision(obj) {
     this.remaining_bounces--;
-    if (this.first_bounce && this.gun && this.gun.tank) {
+    if (this.first_bounce && (Date.now() - this.spawn_time > this.ignore_owner_for) && this.gun && this.gun.tank) {
       // After first bounce bullet can collide with the shooting tank
       this.first_bounce = false;
       var ind = this.ignored_collision_objs.indexOf(this.gun.tank);
