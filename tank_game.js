@@ -144,6 +144,9 @@ class Vector2d {
 
 class GameObject {
   constructor(x, y, width, height, movable = false) {
+    this.destructible = true; // Can this object be destroyed?
+    this.max_hp = 1000;
+    this.hp = this.max_hp;
     this.pos = new Vector2d(x, y);
     this.width = width;
     this.height = height;
@@ -168,6 +171,26 @@ class GameObject {
     this.verts.push(new Vector2d(w, -h));
 
     GAME_OBJECTS.push(this);
+  }
+
+  damage(amount) {
+    if (this.destructible) {
+      if (amount > 0) {
+        this.hp -= amount;
+        this.color_by_damage();
+      }
+      else console.log("WARNING: Attempted to damage by negative amount!!!");
+      if (this.hp <= 0) this.destroy();
+    }
+  }
+
+  set_destructible(value) {
+    this.destructible = value;
+  }
+
+  color_by_damage() {
+    var red = Math.round(255 - (255 * (this.hp/this.max_hp)));
+    this.color.r = red;
   }
 
   rotate(degrees) {
@@ -323,7 +346,7 @@ class Gun {
     this.last_shot = Date.now();
     this.tank = tank; // Used for ignoring collisions when firing
     this.type = GunTypes.normal;
-    this.damage = 4;
+    this.damage_amount = 4;
     this.randomize_direction = false;
   }
 
@@ -336,7 +359,7 @@ class Gun {
         this.clip--;
         this.ammo--;
         this.last_shot = Date.now();
-        var bullet = new Bullet(x, y, direction, this.damage, this);
+        var bullet = new Bullet(x, y, direction, this.damage_amount, this);
       }
     }
   }
@@ -353,7 +376,7 @@ class Machinegun extends Gun {
     this.ammo = 75;
     this.clip = 15;
     this.fire_delay = 0.1;
-    this.damage = 1;
+    this.damage_amount = 1;
     this.randomize_direction = true;
     this.type = GunTypes.machinegun;
   }
@@ -365,7 +388,7 @@ class Heavygun extends Gun {
     this.ammo = 5;
     this.clip = 2;
     this.fire_delay = 1;
-    this.damage = 1000;
+    this.damage_amount = 1000;
     this.randomize_direction = false;
     this.type = GunTypes.heavy;
   }
@@ -415,29 +438,16 @@ class Tank extends GameObject {
     }
   }
 
-  color_by_damage() {
-    var red = Math.round(255 - (255 * (this.hp/this.max_hp)));
-    this.color.r = red;
-  }
-
-  damage(amount) {
-    if (amount > 0) {
-      this.hp -= amount;
-      this.color_by_damage();
-    }
-    else console.log("WARNING: Attempted to damage by negative amount!!!");
-    if (this.hp < 0) this.destroy();
-  }
-
   destroy() {
     END_ROUND = true;
     this.player === P1 ? P2_SCORE++ : P1_SCORE++;
     for (var i = 0; i < 360; i += 60) {
       // Spawn a ring of bullets on death
       var radians = deg2rad(i);
+      var damage = 4;
       var off_x = this.width * Math.cos(radians);
       var off_y = this.width * Math.sin(radians);
-      new Bullet(this.pos.x + off_x, this.pos.y + off_y, i);
+      new Bullet(this.pos.x + off_x, this.pos.y + off_y, i, damage);
     }
     super.destroy();
   }
@@ -558,11 +568,7 @@ class Bullet extends GameObject {
     var radians = deg2rad(direction);
     this.velocity.x = this.speed * Math.cos(radians);
     this.velocity.y = this.speed * Math.sin(radians);
-    this.damage = damage;
-    if (damage > 100) // TODO: Don't use magic numbers for this
-      this.destroy_anything = true;
-    else
-      this.destroy_anything = false;
+    this.damage_amount = damage;
     this.radius = this.width/2;
     this.circle = true;
   }
@@ -580,12 +586,9 @@ class Bullet extends GameObject {
       this.destroy();
     }
 
+    obj.damage(this.damage_amount);
     if (obj instanceof Tank) {
-      obj.damage(this.damage);
       this.destroy();
-    }
-    else if (this.destroy_anything) {
-      obj.destroy();
     }
   }
 
@@ -1054,10 +1057,15 @@ function maze_generator_kruskal() {
   // Create border walls (top,bottom,left,right)
   let map_width = CELLS_X * CELL_SIZE;
   let map_height = CELLS_Y * CELL_SIZE;
-  new GameObject(map_width/2, WALL_WIDTH/2, map_width, WALL_WIDTH); // Top
-  new GameObject(map_width/2, map_height-WALL_WIDTH/2, map_width, WALL_WIDTH); // Bottom
-  new GameObject(WALL_WIDTH/2, map_height/2, WALL_WIDTH, map_height); // Left
-  new GameObject(map_width - WALL_WIDTH/2, map_height/2, WALL_WIDTH, map_height); // Right
+  let top = new GameObject(map_width/2, WALL_WIDTH/2, map_width, WALL_WIDTH); // Top
+  let bottom = new GameObject(map_width/2, map_height-WALL_WIDTH/2, map_width, WALL_WIDTH); // Bottom
+  let left = new GameObject(WALL_WIDTH/2, map_height/2, WALL_WIDTH, map_height); // Left
+  let right = new GameObject(map_width - WALL_WIDTH/2, map_height/2, WALL_WIDTH, map_height); // Right
+  // Make the border walls indestructible
+  top.set_destructible(false);
+  bottom.set_destructible(false);
+  left.set_destructible(false);
+  right.set_destructible(false);
 }
 
 main();
