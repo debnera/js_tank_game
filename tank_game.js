@@ -432,7 +432,7 @@ var TankGame = (function() {
       this.bullet_size = 2;
       this.bullet_speed = 2;
       this.ammo = 75;
-      this.clip = 15;
+      this.clip = 25;
       this.fire_delay = 0.1;
       this.damage_amount = 1;
       this.randomize_direction = true;
@@ -484,7 +484,7 @@ var TankGame = (function() {
       this.color_by_damage();
 
       // Add a gun
-      this.set_gun(GunTypes.heavy);
+      this.set_gun(GunTypes.normal);
       var w = this.width / 2;
       var h = this.height / 2;
       var last_vert = this.verts.pop();
@@ -999,7 +999,7 @@ var TankGame = (function() {
     // GUI
     if (GUI_REDRAW_NEEDED || END_ROUND) {
       GUI_REDRAW_NEEDED = false;
-      var P2_offset_x = WIDTH - 250;
+      var P2_offset_x = WIDTH - 270;
       CTX.save();
       CTX.translate(0, HEIGHT); // Move to GUI space
       CTX.fillStyle = "#fff";
@@ -1017,12 +1017,13 @@ var TankGame = (function() {
       CTX.font = "16px Arial";
       CTX.fillText("Move: WASD", 30, 80);
       CTX.fillText("Fire: 1", 30, 100);
-      CTX.fillText("Weapon: " + TANK_P1.gun.get_name(), 30, 120);
-      CTX.fillText("Ammo remaining: " + TANK_P1.gun.get_ammo_str(), 30, 140);
       CTX.fillText("Move: Arrow keys", P2_offset_x, 80);
       CTX.fillText("Fire: -", P2_offset_x, 100);
+      CTX.font = "bold " + CTX.font;
+      CTX.fillText("Weapon: " + TANK_P1.gun.get_name(), 30, 120);
+      CTX.fillText("Ammo remaining: " + TANK_P1.gun.get_ammo_str(), 30, 140);
       CTX.fillText("Weapon: " + TANK_P2.gun.get_name(), P2_offset_x, 120);
-      CTX.fillText("Ammo remaining: " + TANK_P2.gun.get_ammo_str(), P2_offset_x, 140);
+      CTX.fillText("Ammo: " + TANK_P2.gun.get_ammo_str(), P2_offset_x, 140);
       CTX.restore();
     }
   }
@@ -1204,12 +1205,13 @@ var TankGame = (function() {
 
         // Add left border wall
         if (column_ind == 0) {
-          let wall = new GameObject(x-s+1, y, w*2, s*2);
+          let wall = new GameObject(x-s+1, y, w*2, s*2); // Offset by one to improve visibility
           // Make the border walls indestructible
           wall.set_destructible(false);
         }
+        // Add top border wall
         if (cell_ind == 0) {
-          let wall = new GameObject(x, y-s+1, s*2, w*2);
+          let wall = new GameObject(x, y-s+1, s*2, w*2); // Offset by one to improve visibility
           // Make the border walls indestructible
           wall.set_destructible(false);
         }
