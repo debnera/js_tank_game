@@ -147,7 +147,7 @@ class GameObject {
     this.pos = new Vector2d(x, y);
     this.width = width;
     this.height = height;
-    this.rotation = 0;
+    this.rotation = 0; // In degrees
     this.velocity = new Vector2d(0, 0);
     this.movable = movable; // Can be moved by collisions
     this.color = "#000";
@@ -301,6 +301,59 @@ class GameObject {
   }
 };
 
+var GunTypes = {
+  // Enumeration for different types of guns
+  'normal' : 1,
+  'machinegun' : 2,
+  'heavy' : 3,
+}
+
+class Gun {
+  /*
+    Handles the firing of tank guns.
+  */
+  constructor(tank) {
+    this.ammo = 1000; // Max shots for current gun
+    this.clip = 5; // Max simultaenous shots
+    this.fire_delay = 0.5;
+    this.last_shot = Date.now();
+    this.tank = tank; // Used for ignoring collisions when firing
+    this.type = GunTypes.normal;
+    this.damage = 4;
+    this.randomize_direction = false;
+  }
+
+  fire(x, y, direction) {
+    if (this.randomize_direction) {
+      direction += Math.random() * 10 - 5; // Add a random offset of +-5 degrees
+    }
+    if (this.clip > 0 && this.ammo > 0) {
+      if (Date.now() - this.last_shot > this.fire_delay * 1000) {
+        this.clip--;
+        this.ammo--;
+        this.last_shot = Date.now();
+        var bullet = new Bullet(x, y, direction, this.damage, this);
+      }
+    }
+  }
+
+  reload() {
+    // Adds one bullet to clip.
+    this.clip++;
+  }
+};
+
+class Machinegun extends Gun {
+  constructor(tank) {
+    super(tank);
+    this.ammo = 75;
+    this.clip = 15;
+    this.fire_delay = 0.1;
+    this.damage = 1;
+    this.randomize_direction = true;
+    this.type = GunTypes.machinegun;
+  }
+};
 
 class Tank extends GameObject {
   constructor(x, y, player) {
@@ -317,6 +370,7 @@ class Tank extends GameObject {
     this.color_by_damage();
 
     // Add a gun
+    this.gun = new Gun(this);
     var w = this.width / 2;
     var h = this.height / 2;
     var last_vert = this.verts.pop();
@@ -325,6 +379,23 @@ class Tank extends GameObject {
     this.verts.push(new Vector2d(w*2, -h/2));
     this.verts.push(new Vector2d(w, -h/2));
     this.verts.push(last_vert);
+  }
+
+  set_gun(type) {
+    switch (type) {
+      case GunTypes.normal :
+        this.gun = new Gun(this);
+        break;
+      case GunTypes.machinegun :
+        this.gun = new Machinegun(this);
+        break;
+      case GunTypes.heavy :
+        //this.gun = new
+      default :
+        console.log("Invalig gun type given " + type);
+        this.gun = new Gun(this);
+        break;
+    }
   }
 
   color_by_damage() {
@@ -349,7 +420,7 @@ class Tank extends GameObject {
       var radians = deg2rad(i);
       var off_x = this.width * Math.cos(radians);
       var off_y = this.width * Math.sin(radians);
-      new Bullet(this.pos.x + off_x, this.pos.y + off_y, i, this);
+      new Bullet(this.pos.x + off_x, this.pos.y + off_y, i);
     }
     super.destroy();
   }
@@ -384,20 +455,22 @@ class Tank extends GameObject {
     super.update(); // Move and check collisions before firing
 
     if ((p == P1 && KEYSTATE[P1_FIRE]) || (p == P2 && KEYSTATE[P2_FIRE])) {
-      if (this.fire_delay === 0 && this.ammo > 0) {
-        this.ammo--;
-        this.fire_delay = this.max_fire_delay;
+      if (this.gun.ammo > 0) {
         var off_x = this.width * 0.9 * Math.cos(radians);
         var off_y = this.width * 0.9 * Math.sin(radians);
-        var bullet = new Bullet(this.pos.x + off_x, this.pos.y + off_y, this.rotation, this);
+        this.gun.fire(this.pos.x + off_x, this.pos.y + off_y, this.rotation);
       }
+      else {
+        this.set_gun(GunTypes.normal); // Replace all special guns with a regular gun
+      }
+
     }
   }
 };
 
 var PowerupType = {
-  'minigun' : 1,
-  'cannon' : 2,
+  'machinegun' : 1,
+  'heavy' : 2,
   'speed' : 3,
   'get_random_type' :
     function get_random_type() {
@@ -415,17 +488,17 @@ class Powerup extends GameObject {
 
   re_color() {
     switch(this.type) {
-      case PowerupType.minigun:
+      case PowerupType.machinegun:
         this.color = "rgb(10, 200, 200)";
         break;
-      case PowerupType.cannon:
+      case PowerupType.heavy:
         this.color = "rgb(20, 50, 120)";
         break;
       case PowerupType.speed:
         this.color = "rgb(150, 230, 255)";
         break;
       default:
-        console.log("Powerup has invalid type!");
+
         this.color = "rgb(10, 10, 10)";
     }
   }
@@ -436,20 +509,32 @@ class Powerup extends GameObject {
 
   on_collision(obj) {
     if (obj instanceof Tank) {
-      //switch
+      switch (this.type) {
+        case PowerupType.machinegun:
+          obj.set_gun(GunTypes.machinegun);
+          break;
+        case PowerupType.heavy:
+          obj.set_gun(GunTypes.heavy);
+          break;
+        case PowerupType.speed:
+          obj.speed++;
+          break;
+        default:
+          console.log("Powerup has invalid type!");
+      }
       this.destroy();
     }
   }
 };
 
 class Bullet extends GameObject {
-  constructor(x, y, direction, owner_tank) {
+  constructor(x, y, direction, damage, gun) {
     super(x, y, 5, 5, true);
     this.remaining_bounces = 10;
     this.first_bounce = true;
     this.speed = 1.5;
-    this.tank = owner_tank;
-    this.ignored_collision_objs.push(this.tank); // Don't collide with tank before first bounce
+    this.gun = gun;
+    if (this.gun && this.gun.tank) this.ignored_collision_objs.push(this.gun.tank); // Don't collide with tank before first bounce
     this.color = "rgb(" +
       Math.round(Math.random() * 255) + "," +
       Math.round(Math.random() * 255) + "," +
@@ -457,17 +542,17 @@ class Bullet extends GameObject {
     var radians = deg2rad(direction);
     this.velocity.x = this.speed * Math.cos(radians);
     this.velocity.y = this.speed * Math.sin(radians);
-    this.damage = 4;
+    this.damage = damage;
     this.radius = this.width/2;
     this.circle = true;
   }
 
   on_collision(obj) {
     this.remaining_bounces--;
-    if (this.first_bounce) {
+    if (this.first_bounce && this.gun && this.gun.tank) {
       // After first bounce bullet can collide with the shooting tank
       this.first_bounce = false;
-      var ind = this.ignored_collision_objs.indexOf(this.tank);
+      var ind = this.ignored_collision_objs.indexOf(this.gun.tank);
       if (ind > -1) delete this.ignored_collision_objs[ind];
     }
 
@@ -481,7 +566,7 @@ class Bullet extends GameObject {
   }
 
   destroy() {
-    if (this.tank) this.tank.ammo++;
+    if (this.gun) this.gun.reload();
     super.destroy();
   }
 
