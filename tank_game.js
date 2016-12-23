@@ -625,10 +625,11 @@ var TankGame = (function() {
       if (typeof speed == 'undefined') speed = 1.5;
       if (typeof size == 'undefined') size = 5;
       super(x, y, size, size, true);
+      this.max_time_to_live = 15000; // After this time the bullet disappears (milliseconds)
       this.remaining_bounces = 10;
       this.first_bounce = true;
       this.spawn_time = Date.now();
-      this.ignore_owner_for = 3 * size / speed; // Can't hit owner for this duration (milliseconds)
+      this.ignore_owner_for = 3 * size / speed; // HACK: this value is just randomly guessed (milliseconds)
       this.speed = speed;
       this.gun = gun;
       if (this.gun && this.gun.tank) this.ignored_collision_objs.push(this.gun.tank); // Don't collide with tank before first bounce
@@ -641,6 +642,14 @@ var TankGame = (function() {
       this.damage_amount = damage;
       this.radius = this.width/2;
       this.circle = true;
+    }
+
+    update() {
+      super.update();
+      if (Date.now() - this.spawn_time > this.max_time_to_live) {
+        // This bullet has been around long enough, destroy it
+        this.destroy();
+      }
     }
 
     on_collision(obj) {
