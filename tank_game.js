@@ -355,6 +355,18 @@ class Machinegun extends Gun {
   }
 };
 
+class Heavygun extends Gun {
+  constructor(tank) {
+    super(tank);
+    this.ammo = 5;
+    this.clip = 2;
+    this.fire_delay = 1;
+    this.damage = 1000;
+    this.randomize_direction = false;
+    this.type = GunTypes.heavy;
+  }
+};
+
 class Tank extends GameObject {
   constructor(x, y, player) {
     super(x, y, TANK_SIZE, TANK_SIZE, true); // Movable=true
@@ -390,7 +402,8 @@ class Tank extends GameObject {
         this.gun = new Machinegun(this);
         break;
       case GunTypes.heavy :
-        //this.gun = new
+        this.gun = new Heavygun(this);
+        break;
       default :
         console.log("Invalig gun type given " + type);
         this.gun = new Gun(this);
@@ -498,7 +511,7 @@ class Powerup extends GameObject {
         this.color = "rgb(150, 230, 255)";
         break;
       default:
-
+        console.log("Powerup has invalid type!");
         this.color = "rgb(10, 10, 10)";
     }
   }
@@ -543,6 +556,10 @@ class Bullet extends GameObject {
     this.velocity.x = this.speed * Math.cos(radians);
     this.velocity.y = this.speed * Math.sin(radians);
     this.damage = damage;
+    if (damage > 100) // TODO: Don't use magic numbers for this
+      this.destroy_anything = true;
+    else
+      this.destroy_anything = false;
     this.radius = this.width/2;
     this.circle = true;
   }
@@ -559,9 +576,13 @@ class Bullet extends GameObject {
     if (this.remaining_bounces < 1) {
       this.destroy();
     }
+
     if (obj instanceof Tank) {
       obj.damage(this.damage);
       this.destroy();
+    }
+    else if (this.destroy_anything) {
+      obj.destroy();
     }
   }
 
