@@ -176,7 +176,7 @@ var TankGame = (function() {
       this.ignored_collision_objs = [this];
       this.circle = false;
       this.radius = 0;
-      this.change_direction_on_collision = true; // Lets bullets bounce of surfaces
+      this.unstoppable = false; // Lets object move through destructible objects
 
       var w = this.width / 2;
       var h = this.height / 2;
@@ -202,8 +202,8 @@ var TankGame = (function() {
       }
     }
 
-    set_change_direction_on_collision(value) {
-      this.change_direction_on_collision = value;
+    set_unstoppable(value) {
+      this.unstoppable = value;
     }
 
     set_destructible(value) {
@@ -296,17 +296,21 @@ var TankGame = (function() {
           if (collisions.length > 0) {
             //console.log(collisions);
           }
-
           for (var i = 0; i < collisions.length; i++) {
             // Loop over all collisions one at a time
             var collision = collisions[i];
             var obj1 = collision.obj1; // This object (redundant)
             var obj2 = collision.obj2; // The colliding object
             var dir = collision.direction.clone();
-            this.move(dir.clone().multiply(collision.magnitude));
-            if (this.change_direction_on_collision || obj2.destructible == false) {
-              this.velocity.reflect(dir);
+            if (this.unstoppable && obj2.destructible == true) {
+              // Don't attempt to solve collisions for unstoppable objects
+              // unstoppable objects can go through almost anything.
+              obj1.on_collision(obj2);
+              obj2.on_collision(obj1);
+              break;
             }
+            this.move(dir.clone().multiply(collision.magnitude));
+            this.velocity.reflect(dir);
 
 
             // Get all new collisions after moving
@@ -331,6 +335,7 @@ var TankGame = (function() {
               attempts++;
             }
           }
+
         }
         if(attempts > 1) {
           console.log("Attempted to resolve collisions " + attempts + " times");
@@ -456,7 +461,7 @@ var TankGame = (function() {
       // Override firing to make the bullet unstoppable
       var bullet = super.fire(x, y, direction);
       if (bullet)
-        bullet.set_change_direction_on_collision(false);
+        bullet.set_unstoppable(true);
     }
 
     get_name() {
@@ -479,7 +484,7 @@ var TankGame = (function() {
       this.color_by_damage();
 
       // Add a gun
-      this.set_gun(GunTypes.normal);
+      this.set_gun(GunTypes.heavy);
       var w = this.width / 2;
       var h = this.height / 2;
       var last_vert = this.verts.pop();
@@ -519,7 +524,6 @@ var TankGame = (function() {
         var off_x = this.width * Math.cos(radians);
         var off_y = this.width * Math.sin(radians);
         new Bullet(this.pos.x + off_x, this.pos.y + off_y, i, damage);
-        console.log("Ring of death");
       }
       super.destroy();
     }
