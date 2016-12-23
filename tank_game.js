@@ -2,8 +2,8 @@
   Created by: Anton Debner 2016
 */
 var TankGame = (function() {
-  var WIDTH = 900;
-  var HEIGHT = 600;
+  var WIDTH = 901;
+  var HEIGHT = 601;
   var GUI_HEIGHT = 150;
   var DEBUG = false;
   // WASD
@@ -28,6 +28,10 @@ var TankGame = (function() {
   var CELL_SIZE = 50;
   var RESET_COUNTER_MAX = 200; // Time to start next round (frames)
   var EPSILON = 0.001; // Used for comparing floats
+
+  // Optimization: skip collision checks between distant objects
+  // NOTE: This only works if there are no large objects in the scene
+  var MAX_DIST_FOR_COLLISIONS = 2; // (this is multiplied by CELL_SIZE)
 
   // Global variables (Do not attempt to configure)
   var TANK_P1, TANK_P2;
@@ -122,6 +126,10 @@ var TankGame = (function() {
 
     get_magnitude() {
       return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
+    }
+
+    get_magnitude_squared() {
+      return Math.pow(this.x, 2) + Math.pow(this.y, 2);
     }
 
     get_inverted() {
@@ -713,12 +721,19 @@ var TankGame = (function() {
     */
     var obj1 = game_obj1;
     var obj2 = game_obj2;
+    let temp_pos1 = obj1.pos.clone();
+    var d_origins = temp_pos1.subtract(obj2.pos).get_magnitude();
+    var collision = new Collision(game_obj1, game_obj2);
+    collision.has_collided = false;
+    if (d_origins > MAX_DIST_FOR_COLLISIONS * CELL_SIZE) {
+      // Optimization: Skip further checks for distant objects
+      return collision;
+    }
     var verts1 = game_obj1.get_verts();
     var verts2 = game_obj2.get_verts();
     var pos1 = game_obj1.pos.clone();
     var pos2 = game_obj2.pos.clone();
-    var collision = new Collision(game_obj1, game_obj2);
-    collision.has_collided = false;
+
     for (var i = 0; i < verts1.length + verts2.length; i++) {
       // Calculate next axis by taking the normal of a side of one object
       if (i < verts1.length) {
@@ -1168,27 +1183,34 @@ var TankGame = (function() {
         var y = cell.y;
         var s = CELL_SIZE/2;
         var w = WALL_WIDTH/2;
-        if (cell.bottom_wall && cell_ind != column.length-1) {
-          new GameObject(x, y+s, s*2, w*2);
+        if (cell.bottom_wall) {
+          let wall = new GameObject(x, y+s, s*2, w*2);
+          if (cell_ind == column.length-1) {
+            // Make the border walls indestructible
+            wall.set_destructible(false);
+          }
         }
-        if (cell.right_wall && column_ind != cells.length-1) {
-          new GameObject(x+s, y, w*2, s*2);
+        if (cell.right_wall) {
+          let wall = new GameObject(x+s, y, w*2, s*2);
+          if (column_ind == cells.length-1) {
+            // Make the border walls indestructible
+            wall.set_destructible(false);
+          }
+        }
+
+        // Add left border wall
+        if (column_ind == 0) {
+          let wall = new GameObject(x-s+1, y, w*2, s*2);
+          // Make the border walls indestructible
+          wall.set_destructible(false);
+        }
+        if (cell_ind == 0) {
+          let wall = new GameObject(x, y-s+1, s*2, w*2);
+          // Make the border walls indestructible
+          wall.set_destructible(false);
         }
       }
     }
-
-    // Create border walls (top,bottom,left,right)
-    let map_width = CELLS_X * CELL_SIZE;
-    let map_height = CELLS_Y * CELL_SIZE;
-    let top = new GameObject(map_width/2, WALL_WIDTH/2, map_width, WALL_WIDTH); // Top
-    let bottom = new GameObject(map_width/2, map_height-WALL_WIDTH/2, map_width, WALL_WIDTH); // Bottom
-    let left = new GameObject(WALL_WIDTH/2, map_height/2, WALL_WIDTH, map_height); // Left
-    let right = new GameObject(map_width - WALL_WIDTH/2, map_height/2, WALL_WIDTH, map_height); // Right
-    // Make the border walls indestructible
-    top.set_destructible(false);
-    bottom.set_destructible(false);
-    left.set_destructible(false);
-    right.set_destructible(false);
   }
 
   main();
@@ -1197,6 +1219,7 @@ var TankGame = (function() {
     // Return some objects/methods for debugging purposes
     GAME_OBJECTS : GAME_OBJECTS,
     SET_DEBUG : function set_debug(value) { DEBUG = value; },
+    SET_COLLISION_DISTANCE : function set_collision_distance(value) { MAX_DIST_FOR_COLLISIONS = value; },
   };
 
 })();
