@@ -5,7 +5,7 @@
 var WIDTH = 900;
 var HEIGHT = 600;
 var GUI_HEIGHT = 100;
-
+var DEBUG = false;
 // WASD
 var P1_UP = 87;
 var P1_DOWN = 83;
@@ -31,6 +31,7 @@ var EPSILON = 0.001; // Used for comparing floats
 // Global variables (Do not attempt to configure)
 var CELLS_X, CELLS_Y;
 var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
+var PRERENDERED_CANVAS, PRERENDERED_CTX, FULL_REDRAW_NEEDED;
 var END_ROUND = false;
 var P1 = 1;
 var P2 = 2;
@@ -172,6 +173,10 @@ class GameObject {
     this.verts.push(new Vector2d(w, -h));
 
     GAME_OBJECTS.push(this);
+    if (this.movable == false) {
+      FULL_REDRAW_NEEDED = true;
+    }
+
   }
 
   damage(amount) {
@@ -247,6 +252,9 @@ class GameObject {
   destroy() {
     var i = GAME_OBJECTS.indexOf(this);
     delete GAME_OBJECTS[i];
+    if (this.movable == false) {
+      FULL_REDRAW_NEEDED = true;
+    }
   }
 
   update() {
@@ -317,25 +325,25 @@ class GameObject {
     }
   }
 
-  draw() {
-    CTX.save();
+  draw(context) {
+    context.save();
     let color = "rgb(" + this.color.r + "," + this.color.g + "," + this.color.b + ")";
-    CTX.fillStyle = color;
-    CTX.translate(this.pos.x, this.pos.y);
-    CTX.beginPath();
+    context.fillStyle = color;
+    context.translate(this.pos.x, this.pos.y);
+    context.beginPath();
     if (this.circle === true) {
-      CTX.arc(0, 0, this.radius, 0, 2 * Math.PI);
+      context.arc(0, 0, this.radius, 0, 2 * Math.PI);
     }
     else {
       var verts = this.get_verts();
-      CTX.moveTo(verts[0].x, verts[0].y);
+      context.moveTo(verts[0].x, verts[0].y);
       for (var vert of verts) {
-        CTX.lineTo(vert.x, vert.y);
+        context.lineTo(vert.x, vert.y);
       }
-      CTX.lineTo(vert.x, vert.y);
+      context.lineTo(vert.x, vert.y);
     }
-    CTX.fill();
-    CTX.restore();
+    context.fill();
+    context.restore();
   }
 };
 
@@ -534,7 +542,7 @@ var PowerupType = {
 
 class Powerup extends GameObject {
   constructor(x, y, type) {
-    super(x, y, 10, 10, false);
+    super(x, y, 10, 10, true);
     this.type = type;
     this.max_hp = 20;
     this.hp = this.max_hp;
@@ -771,6 +779,12 @@ function main() {
   CANVAS.height = HEIGHT + GUI_HEIGHT;
   CTX = CANVAS.getContext("2d");
 
+  // Initialize another canvas for quickly drawing static objects
+  PRERENDERED_CANVAS = document.createElement("canvas")
+  PRERENDERED_CANVAS.width = WIDTH;
+  PRERENDERED_CANVAS.height = HEIGHT + GUI_HEIGHT;
+  PRERENDERED_CTX = PRERENDERED_CANVAS.getContext("2d");
+
   // Attempt to find a document element with specific id, otherwise attach the
   // canvas to document body.
   attach_to = document.getElementById('game_window');
@@ -810,14 +824,16 @@ function main() {
     iteration_time += Date.now() - start_time;
 
     // FPS-counter for performance analysis
-    /*
-    frames++;
-    if (Date.now() - previous_time > 1000) {
-      console.log(frames + "  :  " + (iteration_time/frames));
-      previous_time = Date.now();
-      iteration_time = 0;
-      frames = 0;
-    }*/
+    if (DEBUG) {
+      frames++;
+      if (Date.now() - previous_time > 1000) {
+        console.log(frames + "  :  " + (iteration_time/frames));
+        previous_time = Date.now();
+        iteration_time = 0;
+        frames = 0;
+      }
+    }
+
 
     // Start a new round if necessary
     if (END_ROUND === true) reset_counter++;
@@ -901,9 +917,29 @@ function draw() {
   // Game
   CTX.fillStyle = "#fff";
   CTX.fillRect(0, 0, WIDTH, HEIGHT);
+
+  // Redraw static objects only if they have been changed
+  if (FULL_REDRAW_NEEDED) {
+    PRERENDERED_CTX.fillStyle = "#fff";
+    PRERENDERED_CTX.fillRect(0, 0, WIDTH, HEIGHT);
+    FULL_REDRAW_NEEDED = false;
+    for (obj_ind in GAME_OBJECTS) {
+      obj = GAME_OBJECTS[obj_ind];
+      if (obj.movable === false) {
+        obj.draw(PRERENDERED_CTX);
+      }
+    }
+  }
+
+  // Draw prerendered static objects
+  CTX.drawImage(PRERENDERED_CANVAS, 0, 0);
+
+  // Draw other objects
   for (obj_ind in GAME_OBJECTS) {
     obj = GAME_OBJECTS[obj_ind];
-    obj.draw();
+    if (obj.movable === true) {
+      obj.draw(CTX);
+    }
   }
 
   // GUI
