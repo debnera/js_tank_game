@@ -150,7 +150,10 @@ class GameObject {
     this.rotation = 0; // In degrees
     this.velocity = new Vector2d(0, 0);
     this.movable = movable; // Can be moved by collisions
-    this.color = "#000";
+    this.color = {};
+    this.color.r = 0;
+    this.color.g = 0;
+    this.color.b = 0;
     this.verts = [];
     this.rotated_verts = [];
     this.ignored_collision_objs = [this];
@@ -282,7 +285,8 @@ class GameObject {
 
   draw() {
     CTX.save();
-    CTX.fillStyle = this.color;
+    let color = "rgb(" + this.color.r + "," + this.color.g + "," + this.color.b + ")";
+    CTX.fillStyle = color;
     CTX.translate(this.pos.x, this.pos.y);
     CTX.beginPath();
     if (this.circle === true) {
@@ -413,7 +417,7 @@ class Tank extends GameObject {
 
   color_by_damage() {
     var red = Math.round(255 - (255 * (this.hp/this.max_hp)));
-    this.color = "rgb(" + red + ",0,0)";
+    this.color.r = red;
   }
 
   damage(amount) {
@@ -502,17 +506,17 @@ class Powerup extends GameObject {
   re_color() {
     switch(this.type) {
       case PowerupType.machinegun:
-        this.color = "rgb(10, 200, 200)";
+        this.color = {"r":0, "g": 200, "b": 200};
         break;
       case PowerupType.heavy:
-        this.color = "rgb(20, 50, 120)";
+        this.color = {"r":0, "g": 50, "b": 120};
         break;
       case PowerupType.speed:
-        this.color = "rgb(150, 230, 255)";
+        this.color = {"r":0, "g": 255, "b": 255};
         break;
       default:
         console.log("Powerup has invalid type!");
-        this.color = "rgb(10, 10, 10)";
+        this.color = {"r":0, "g": 10, "b": 10};
     }
   }
 
@@ -548,10 +552,9 @@ class Bullet extends GameObject {
     this.speed = 1.5;
     this.gun = gun;
     if (this.gun && this.gun.tank) this.ignored_collision_objs.push(this.gun.tank); // Don't collide with tank before first bounce
-    this.color = "rgb(" +
-      Math.round(Math.random() * 255) + "," +
-      Math.round(Math.random() * 255) + "," +
-      Math.round(Math.random() * 255) + ")";
+    this.color.r =  Math.round(Math.random() * 255);
+    this.color.g =  Math.round(Math.random() * 255);
+    this.color.b =  Math.round(Math.random() * 255);
     var radians = deg2rad(direction);
     this.velocity.x = this.speed * Math.cos(radians);
     this.velocity.y = this.speed * Math.sin(radians);
