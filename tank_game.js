@@ -33,7 +33,8 @@ var TankGame = (function() {
   var TANK_P1, TANK_P2;
   var CELLS_X, CELLS_Y;
   var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
-  var PRERENDERED_CANVAS, PRERENDERED_CTX, FULL_REDRAW_NEEDED;
+  var PRERENDERED_CANVAS, PRERENDERED_CTX, PRERENDERED_REDRAW_NEEDED;
+  var GUI_REDRAW_NEEDED;
   var END_ROUND = false;
   var RESET_COUNTER;
 
@@ -178,7 +179,7 @@ var TankGame = (function() {
 
       GAME_OBJECTS.push(this);
       if (this.movable == false) {
-        FULL_REDRAW_NEEDED = true;
+        PRERENDERED_REDRAW_NEEDED = true;
       }
 
     }
@@ -257,7 +258,7 @@ var TankGame = (function() {
       var i = GAME_OBJECTS.indexOf(this);
       delete GAME_OBJECTS[i];
       if (this.movable == false) {
-        FULL_REDRAW_NEEDED = true;
+        PRERENDERED_REDRAW_NEEDED = true;
       }
     }
 
@@ -382,6 +383,7 @@ var TankGame = (function() {
       }
       if (this.clip > 0 && this.ammo > 0) {
         if (Date.now() - this.last_shot > this.fire_delay * 1000) {
+          GUI_REDRAW_NEEDED = true; // GUI has info about remaining ammo
           this.clip--;
           this.ammo--;
           this.last_shot = Date.now();
@@ -481,6 +483,7 @@ var TankGame = (function() {
     }
 
     set_gun(type) {
+      GUI_REDRAW_NEEDED = true; // GUI has info about player weapons
       switch (type) {
         case GunTypes.normal :
           this.gun = new Gun(this);
@@ -492,7 +495,7 @@ var TankGame = (function() {
           this.gun = new Heavygun(this);
           break;
         default :
-          console.log("Invalig gun type given " + type);
+          console.log("Invalid gun type given " + type);
           this.gun = new Gun(this);
           break;
       }
@@ -912,6 +915,8 @@ var TankGame = (function() {
     */
     GAME_OBJECTS = [];
     KEYSTATE = {}; // Reset the keystate to avoid stuck buttons
+    PRERENDERED_REDRAW_NEEDED = true;
+    GUI_REDRAW_NEEDED = true;
 
 
 
@@ -949,10 +954,10 @@ var TankGame = (function() {
     CTX.clearRect(0, 0, WIDTH, HEIGHT);
 
     // Redraw static objects only if they have been changed
-    if (FULL_REDRAW_NEEDED) {
+    if (PRERENDERED_REDRAW_NEEDED) {
       PRERENDERED_CTX.fillStyle = "#fff";
       PRERENDERED_CTX.clearRect(0, 0, WIDTH, HEIGHT);
-      FULL_REDRAW_NEEDED = false;
+      PRERENDERED_REDRAW_NEEDED = false;
       for (obj_ind in GAME_OBJECTS) {
         obj = GAME_OBJECTS[obj_ind];
         if (obj.movable === false) {
@@ -973,31 +978,34 @@ var TankGame = (function() {
     }
 
     // GUI
-    let P2_offset_x = WIDTH - 250;
-    CTX.save();
-    CTX.translate(0, HEIGHT); // Move to GUI space
-    CTX.fillStyle = "#fff";
-    CTX.fillRect(0, 0, WIDTH, GUI_HEIGHT);
-    CTX.font = "30px Arial";
-    CTX.fillStyle = (P1_SCORE >= P2_SCORE) ? "green" : "red";
-    CTX.fillText("Player One: " + P1_SCORE, 30, 50);
-    CTX.fillStyle = (P2_SCORE >= P1_SCORE) ? "green" : "red";
-    CTX.fillText("Player Two: " + P2_SCORE, P2_offset_x, 50);
-    if (END_ROUND === true) {
-      CTX.fillStyle = "blue";
-      CTX.fillText("Next round in: " + (RESET_COUNTER_MAX - RESET_COUNTER), P2_offset_x/2, 50);
+    if (GUI_REDRAW_NEEDED || END_ROUND) {
+      GUI_REDRAW_NEEDED = false;
+      var P2_offset_x = WIDTH - 250;
+      CTX.save();
+      CTX.translate(0, HEIGHT); // Move to GUI space
+      CTX.fillStyle = "#fff";
+      CTX.clearRect(0, 0, WIDTH, GUI_HEIGHT);
+      CTX.font = "30px Arial";
+      CTX.fillStyle = (P1_SCORE >= P2_SCORE) ? "green" : "red";
+      CTX.fillText("Player One: " + P1_SCORE, 30, 50);
+      CTX.fillStyle = (P2_SCORE >= P1_SCORE) ? "green" : "red";
+      CTX.fillText("Player Two: " + P2_SCORE, P2_offset_x, 50);
+      if (END_ROUND === true) {
+        CTX.fillStyle = "blue";
+        CTX.fillText("Next round in: " + (RESET_COUNTER_MAX - RESET_COUNTER), P2_offset_x/2, 50);
+      }
+      CTX.fillStyle = "#000";
+      CTX.font = "16px Arial";
+      CTX.fillText("Move: WASD", 30, 80);
+      CTX.fillText("Fire: 1", 30, 100);
+      CTX.fillText("Weapon: " + TANK_P1.gun.get_name(), 30, 120);
+      CTX.fillText("Ammo remaining: " + TANK_P1.gun.get_ammo_str(), 30, 140);
+      CTX.fillText("Move: Arrow keys", P2_offset_x, 80);
+      CTX.fillText("Fire: -", P2_offset_x, 100);
+      CTX.fillText("Weapon: " + TANK_P2.gun.get_name(), P2_offset_x, 120);
+      CTX.fillText("Ammo remaining: " + TANK_P2.gun.get_ammo_str(), P2_offset_x, 140);
+      CTX.restore();
     }
-    CTX.fillStyle = "#000";
-    CTX.font = "16px Arial";
-    CTX.fillText("Move: WASD", 30, 80);
-    CTX.fillText("Fire: 1", 30, 100);
-    CTX.fillText("Weapon: " + TANK_P1.gun.get_name(), 30, 120);
-    CTX.fillText("Ammo remaining: " + TANK_P1.gun.get_ammo_str(), 30, 140);
-    CTX.fillText("Move: Arrow keys", P2_offset_x, 80);
-    CTX.fillText("Fire: -", P2_offset_x, 100);
-    CTX.fillText("Weapon: " + TANK_P2.gun.get_name(), P2_offset_x, 120);
-    CTX.fillText("Ammo remaining: " + TANK_P2.gun.get_ammo_str(), P2_offset_x, 140);
-    CTX.restore();
   }
 
 
