@@ -26,6 +26,7 @@ var TankGame = (function() {
   var TANK_TURN_SPEED = 5;
   var WALL_WIDTH = 2;
   var CELL_SIZE = 50;
+  var RESET_COUNTER_MAX = 200; // Time to start next round (frames)
   var EPSILON = 0.001; // Used for comparing floats
 
   // Global variables (Do not attempt to configure)
@@ -34,6 +35,8 @@ var TankGame = (function() {
   var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
   var PRERENDERED_CANVAS, PRERENDERED_CTX, FULL_REDRAW_NEEDED;
   var END_ROUND = false;
+  var RESET_COUNTER;
+
   var P1 = 1;
   var P2 = 2;
   var P1_SCORE = 0;
@@ -838,8 +841,8 @@ var TankGame = (function() {
     });
 
     init();
-    var reset_counter = 0;
-    var reset_counter_max = 200;
+    RESET_COUNTER = 0;
+
     var previous_time = Date.now(); // Time in milliseconds
     var frames = 0;
     var iteration_time = 0;
@@ -868,16 +871,11 @@ var TankGame = (function() {
 
 
       // Start a new round if necessary
-      if (END_ROUND === true) reset_counter++;
-      if (reset_counter < reset_counter_max
-          && reset_counter > 0
-          && reset_counter % 10 === 0) {
-        console.log("Ending round in " + (reset_counter_max - reset_counter));
-      }
-      if (reset_counter > reset_counter_max) {
+      if (END_ROUND === true) RESET_COUNTER++;
+      if (RESET_COUNTER > RESET_COUNTER_MAX) {
         init();
         END_ROUND = false;
-        reset_counter = 0;
+        RESET_COUNTER = 0;
       }
 
       // Wait for the browser to finish drawing before looping again
@@ -948,12 +946,12 @@ var TankGame = (function() {
 
     // Game
     CTX.fillStyle = "#fff";
-    CTX.fillRect(0, 0, WIDTH, HEIGHT);
+    CTX.clearRect(0, 0, WIDTH, HEIGHT);
 
     // Redraw static objects only if they have been changed
     if (FULL_REDRAW_NEEDED) {
       PRERENDERED_CTX.fillStyle = "#fff";
-      PRERENDERED_CTX.fillRect(0, 0, WIDTH, HEIGHT);
+      PRERENDERED_CTX.clearRect(0, 0, WIDTH, HEIGHT);
       FULL_REDRAW_NEEDED = false;
       for (obj_ind in GAME_OBJECTS) {
         obj = GAME_OBJECTS[obj_ind];
@@ -985,6 +983,10 @@ var TankGame = (function() {
     CTX.fillText("Player One: " + P1_SCORE, 30, 50);
     CTX.fillStyle = (P2_SCORE >= P1_SCORE) ? "green" : "red";
     CTX.fillText("Player Two: " + P2_SCORE, P2_offset_x, 50);
+    if (END_ROUND === true) {
+      CTX.fillStyle = "blue";
+      CTX.fillText("Next round in: " + (RESET_COUNTER_MAX - RESET_COUNTER), P2_offset_x/2, 50);
+    }
     CTX.fillStyle = "#000";
     CTX.font = "16px Arial";
     CTX.fillText("Move: WASD", 30, 80);
