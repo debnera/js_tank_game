@@ -162,6 +162,7 @@ class GameObject {
     this.ignored_collision_objs = [this];
     this.circle = false;
     this.radius = 0;
+    this.change_direction_on_collision = true; // Lets bullets bounce of surfaces
 
     var w = this.width / 2;
     var h = this.height / 2;
@@ -182,6 +183,10 @@ class GameObject {
       else console.log("WARNING: Attempted to damage by negative amount!!!");
       if (this.hp <= 0) this.destroy();
     }
+  }
+
+  set_change_direction_on_collision(value) {
+    this.change_direction_on_collision = value;
   }
 
   set_destructible(value) {
@@ -275,7 +280,10 @@ class GameObject {
           var obj2 = collision.obj2; // The colliding object
           var dir = collision.direction.clone();
           this.move(dir.clone().multiply(collision.magnitude));
-          this.velocity.reflect(dir);
+          if (this.change_direction_on_collision || obj2.destructible == false) {
+            this.velocity.reflect(dir);
+          }
+
 
           // Get all new collisions after moving
           var new_collisions = GetCollisions(this);
@@ -351,6 +359,7 @@ class Gun {
   }
 
   fire(x, y, direction) {
+    var bullet;
     if (this.randomize_direction) {
       direction += Math.random() * 10 - 5; // Add a random offset of +-5 degrees
     }
@@ -359,9 +368,10 @@ class Gun {
         this.clip--;
         this.ammo--;
         this.last_shot = Date.now();
-        var bullet = new Bullet(x, y, direction, this.damage_amount, this);
+        bullet = new Bullet(x, y, direction, this.damage_amount, this);
       }
     }
+    return bullet;
   }
 
   reload() {
@@ -391,6 +401,12 @@ class Heavygun extends Gun {
     this.damage_amount = 1000;
     this.randomize_direction = false;
     this.type = GunTypes.heavy;
+  }
+  fire(x, y, direction) {
+    // Override firing to make the bullet unstoppable
+    var bullet = super.fire(x, y, direction);
+    if (bullet)
+      bullet.set_change_direction_on_collision(false);
   }
 };
 
