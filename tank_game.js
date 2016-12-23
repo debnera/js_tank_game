@@ -404,13 +404,14 @@ class Heavygun extends Gun {
     super(tank);
     this.bullet_size = 20;
     this.bullet_speed = 1.5;
-    this.ammo = 4;
-    this.clip = 4;
+    this.ammo = 3;
+    this.clip = 3;
     this.fire_delay = 1;
     this.damage_amount = 1000;
     this.randomize_direction = false;
     this.type = GunTypes.heavy;
   }
+
   fire(x, y, direction) {
     // Override firing to make the bullet unstoppable
     var bullet = super.fire(x, y, direction);
@@ -535,6 +536,9 @@ class Powerup extends GameObject {
   constructor(x, y, type) {
     super(x, y, 10, 10, false);
     this.type = type;
+    this.max_hp = 20;
+    this.hp = this.max_hp;
+    this.last_damage_tick = Date.now(); // Cause damage to self every second
     this.turn_speed = 5;
     this.re_color();
   }
@@ -558,6 +562,10 @@ class Powerup extends GameObject {
 
   update() {
     this.rotate(this.turn_speed);
+    if (Date.now() - this.last_damage_tick > 1000) {
+      this.last_damage_tick = Date.now();
+      this.damage(1); // Max time to live is 20 seconds;
+    }
     super.update();
   }
 
@@ -589,7 +597,7 @@ class Bullet extends GameObject {
     this.remaining_bounces = 10;
     this.first_bounce = true;
     this.spawn_time = Date.now();
-    this.ignore_owner_for = 2 * size / speed; // Can't hit owner for this duration (milliseconds)
+    this.ignore_owner_for = 3 * size / speed; // Can't hit owner for this duration (milliseconds)
     this.speed = speed;
     this.gun = gun;
     if (this.gun && this.gun.tank) this.ignored_collision_objs.push(this.gun.tank); // Don't collide with tank before first bounce
@@ -831,7 +839,8 @@ function main() {
 }
 
 function spawn_powerup() {
-  this.max_spawn_time = 20000; // Milliseconds
+  // Randomly spawns a random powerup to the level
+  this.max_spawn_time = 50000; // Max time between spawns (Milliseconds)
   if (typeof this.last_spawn == 'undefined') {
     this.last_spawn = Date.now();
     this.next_spawn_in = Math.random() * this.max_spawn_time;
