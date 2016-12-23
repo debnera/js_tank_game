@@ -4,7 +4,7 @@
 var TankGame = (function() {
   var WIDTH = 900;
   var HEIGHT = 600;
-  var GUI_HEIGHT = 100;
+  var GUI_HEIGHT = 150;
   var DEBUG = false;
   // WASD
   var P1_UP = 87;
@@ -29,6 +29,7 @@ var TankGame = (function() {
   var EPSILON = 0.001; // Used for comparing floats
 
   // Global variables (Do not attempt to configure)
+  var TANK_P1, TANK_P2;
   var CELLS_X, CELLS_Y;
   var CANVAS, CTX, KEYSTATE, GAME_OBJECTS;
   var PRERENDERED_CANVAS, PRERENDERED_CTX, FULL_REDRAW_NEEDED;
@@ -391,6 +392,20 @@ var TankGame = (function() {
       // Adds one bullet to clip.
       this.clip++;
     }
+
+    get_name() {
+      return "40mm gun";
+    }
+
+    get_ammo_str() {
+      switch (this.type) {
+        case GunTypes.normal:
+          return "infinite";
+          break;
+        default:
+          return this.ammo;
+      }
+    }
   };
 
   class Machinegun extends Gun {
@@ -404,6 +419,10 @@ var TankGame = (function() {
       this.damage_amount = 1;
       this.randomize_direction = true;
       this.type = GunTypes.machinegun;
+    }
+
+    get_name() {
+      return ".50 caliber machine gun";
     }
   };
 
@@ -425,6 +444,10 @@ var TankGame = (function() {
       var bullet = super.fire(x, y, direction);
       if (bullet)
         bullet.set_change_direction_on_collision(false);
+    }
+
+    get_name() {
+      return "155mm heavy gun";
     }
   };
 
@@ -891,12 +914,12 @@ var TankGame = (function() {
     // Create tanks at random locations
 
     let pos = get_random_location();
-    new Tank(pos.x, pos.y, P1);
+    TANK_P1 = new Tank(pos.x, pos.y, P1);
     let pos2 = pos;
     while (pos.x == pos2.x && pos.y == pos2.y) {
       pos2 = get_random_location();
     }
-    new Tank(pos2.x, pos2.y, P2);
+    TANK_P2 = new Tank(pos2.x, pos2.y, P2);
   }
 
   function update() {
@@ -943,6 +966,7 @@ var TankGame = (function() {
     }
 
     // GUI
+    let P2_offset_x = WIDTH - 250;
     CTX.save();
     CTX.translate(0, HEIGHT); // Move to GUI space
     CTX.fillStyle = "#fff";
@@ -951,13 +975,17 @@ var TankGame = (function() {
     CTX.fillStyle = (P1_SCORE >= P2_SCORE) ? "green" : "red";
     CTX.fillText("Player One: " + P1_SCORE, 30, 50);
     CTX.fillStyle = (P2_SCORE >= P1_SCORE) ? "green" : "red";
-    CTX.fillText("Player Two: " + P2_SCORE, WIDTH - 200, 50);
+    CTX.fillText("Player Two: " + P2_SCORE, P2_offset_x, 50);
     CTX.fillStyle = "#000";
     CTX.font = "16px Arial";
     CTX.fillText("Move: WASD", 30, 80);
     CTX.fillText("Fire: 1", 30, 100);
-    CTX.fillText("Move: Arrow keys", WIDTH - 200, 80);
-    CTX.fillText("Fire: -", WIDTH - 200, 100);
+    CTX.fillText("Weapon: " + TANK_P1.gun.get_name(), 30, 120);
+    CTX.fillText("Ammo remaining: " + TANK_P1.gun.get_ammo_str(), 30, 140);
+    CTX.fillText("Move: Arrow keys", P2_offset_x, 80);
+    CTX.fillText("Fire: -", P2_offset_x, 100);
+    CTX.fillText("Weapon: " + TANK_P2.gun.get_name(), P2_offset_x, 120);
+    CTX.fillText("Ammo remaining: " + TANK_P2.gun.get_ammo_str(), P2_offset_x, 140);
     CTX.restore();
   }
 
