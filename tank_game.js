@@ -1023,7 +1023,7 @@ var TankGame = (function() {
       CTX.fillText("Weapon: " + TANK_P1.gun.get_name(), 30, 120);
       CTX.fillText("Ammo remaining: " + TANK_P1.gun.get_ammo_str(), 30, 140);
       CTX.fillText("Weapon: " + TANK_P2.gun.get_name(), P2_offset_x, 120);
-      CTX.fillText("Ammo: " + TANK_P2.gun.get_ammo_str(), P2_offset_x, 140);
+      CTX.fillText("Ammo remaining: " + TANK_P2.gun.get_ammo_str(), P2_offset_x, 140);
       CTX.restore();
     }
   }
