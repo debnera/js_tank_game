@@ -2,8 +2,10 @@
   Created by: Anton Debner 2016
 */
 var TankGame = (function() {
-  var WIDTH = 901;
-  var HEIGHT = 601;
+  var TARGET_WIDTH = 801; // Desired width
+  var TARGET_HEIGHT = 601;
+  var WIDTH; // Actual width of game, scaled to fit screen
+  var HEIGHT;
   var GUI_HEIGHT = 150;
   var DEBUG = false;
   // WASD
@@ -826,21 +828,36 @@ var TankGame = (function() {
   ===============================================================================
   */
 
+  function fitToWindow() {
+    /*
+      Scales the game if the browser window is too small.
+    */
+    let screen_margin = 10;
+    WIDTH = Math.min(TARGET_WIDTH, window.innerWidth - screen_margin);
+    HEIGHT = Math.min(TARGET_HEIGHT, window.innerHeight - screen_margin - 300);
+    WIDTH = Math.max(WIDTH, 100);
+    HEIGHT = Math.max(HEIGHT, 100);
+
+    CANVAS.width = WIDTH;
+    CANVAS.height = HEIGHT + GUI_HEIGHT;
+
+    PRERENDERED_CANVAS.width = WIDTH;
+    PRERENDERED_CANVAS.height = HEIGHT + GUI_HEIGHT;
+  }
+
   function main() {
     /*
       Creates a new HTML5 canvas element, adds listeners for input and
       contains the main loop.
     */
-    CANVAS = document.createElement("canvas")
-    CANVAS.width = WIDTH;
-    CANVAS.height = HEIGHT + GUI_HEIGHT;
+    CANVAS = document.createElement("canvas");
     CTX = CANVAS.getContext("2d");
 
     // Initialize another canvas for quickly drawing static objects
-    PRERENDERED_CANVAS = document.createElement("canvas")
-    PRERENDERED_CANVAS.width = WIDTH;
-    PRERENDERED_CANVAS.height = HEIGHT + GUI_HEIGHT;
+    PRERENDERED_CANVAS = document.createElement("canvas");
     PRERENDERED_CTX = PRERENDERED_CANVAS.getContext("2d");
+
+    fitToWindow(); // Set the size of both canvas
 
     // Attempt to find a document element with specific id, otherwise attach the
     // canvas to document body.
@@ -851,10 +868,9 @@ var TankGame = (function() {
     // Add listeners for keydown and keyup
     KEYSTATE = {};
     document.addEventListener("keydown", function(evt) {
-      //if (evt.keyCode === UpArrow || evt.keyCode === DownArrow) {
-        // Prevent up and down arrows from scrolling the website
-        //evt.preventDefault();
-      //}
+      if([32, 37, 38, 39, 40].indexOf(evt.keyCode) > -1) {
+          evt.preventDefault(); // Prevent scrolling with arrowkeys and spacebar
+      }
       KEYSTATE[evt.keyCode] = true;
     });
 
@@ -937,7 +953,7 @@ var TankGame = (function() {
     PRERENDERED_REDRAW_NEEDED = true;
     GUI_REDRAW_NEEDED = true;
 
-
+    fitToWindow(); // Rescale the game window, if necessary
 
     // Generate map
     maze_generator_kruskal();
